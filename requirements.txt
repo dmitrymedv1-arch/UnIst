@@ -1,0 +1,12 @@
+streamlit
+pandas
+numpy
+plotly
+matplotlib
+requests
+aiohttp
+tenacity
+python-dateutil
+openpyxl
+xlsxwriter
+networkx
