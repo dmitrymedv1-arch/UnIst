@@ -1521,6 +1521,8 @@ def fetch_all_dois_openalex(ror, years_expanded):
             # Update progress
             if total_expected > 0:
                 progress = min(len(all_dois) / total_expected, 1.0)
+                # Гарантируем, что значение строго в пределах [0.0, 1.0]
+                progress = max(0.0, min(progress, 1.0))
                 progress_bar.progress(progress)
                 status_text.text(f"📥 Collected {len(all_dois)} DOIs from {total_expected}")
             
@@ -1615,6 +1617,7 @@ def process_dois_parallel(dois, target_ror=None, max_workers=MAX_WORKERS):
                 
                 # Update progress
                 progress = total_processed / total_dois
+                progress = max(0.0, min(progress, 1.0))
                 progress_bar.progress(progress)
                 status_text.text(f"🔍 Processing DOIs: {total_processed}/{total_dois} (Attempt {attempt})")
         
@@ -3503,6 +3506,7 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
             mime="application/json",
             use_container_width=True
         )
+
 
 
 
