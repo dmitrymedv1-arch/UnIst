@@ -25,8 +25,11 @@ from dateutil.parser import parse as date_parse
 import concurrent.futures
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import random
+from typing import List, Dict, Tuple, Optional, Set, Any
+import warnings
+warnings.filterwarnings('ignore')
 
-# Научный стиль для графиков matplotlib
+# Scientific style for matplotlib plots
 plt.rcParams.update({
     # Font sizes and weights
     'font.size': 10,
@@ -79,7 +82,7 @@ plt.rcParams.update({
     'errorbar.capsize': 3,
 })
 
-# Случайная цветовая палитра для интерфейса
+# Random color palette for interface
 COLOR_PALETTES = [
     {
         'primary': '#FF6B6B',
@@ -183,11 +186,109 @@ COLOR_PALETTES = [
     }
 ]
 
-# Случайный выбор палитры при запуске
+# Plot color palettes (15 options for user selection)
+PLOT_COLOR_PALETTES = [
+    {
+        'name': 'Viridis (Default)',
+        'sequential': 'Viridis',
+        'categorical': ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
+        'diverging': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850']
+    },
+    {
+        'name': 'Plasma',
+        'sequential': 'Plasma',
+        'categorical': ['#0d0887', '#6a00a8', '#b12a90', '#e16462', '#fca636'],
+        'diverging': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850']
+    },
+    {
+        'name': 'Inferno',
+        'sequential': 'Inferno',
+        'categorical': ['#000004', '#320a5e', '#781c6d', '#bb3754', '#fcffa4'],
+        'diverging': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850']
+    },
+    {
+        'name': 'Magma',
+        'sequential': 'Magma',
+        'categorical': ['#000004', '#2d0c4b', '#711f81', '#b63679', '#fcfdbf'],
+        'diverging': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850']
+    },
+    {
+        'name': 'Cividis',
+        'sequential': 'Cividis',
+        'categorical': ['#00204d', '#2b4e7a', '#557e9c', '#88b0b1', '#fdeba9'],
+        'diverging': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850']
+    },
+    {
+        'name': 'Turbo',
+        'sequential': 'Turbo',
+        'categorical': ['#30123b', '#4668b2', '#32a674', '#c6da37', '#fcfc5c'],
+        'diverging': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850']
+    },
+    {
+        'name': 'Blues',
+        'sequential': 'Blues',
+        'categorical': ['#08306b', '#2171b5', '#4292c6', '#6baed6', '#c6dbef'],
+        'diverging': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850']
+    },
+    {
+        'name': 'Reds',
+        'sequential': 'Reds',
+        'categorical': ['#67000d', '#a50f15', '#cb181d', '#ef3b2c', '#fcae91'],
+        'diverging': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850']
+    },
+    {
+        'name': 'Greens',
+        'sequential': 'Greens',
+        'categorical': ['#00441b', '#238b45', '#41ab5d', '#74c476', '#c7e9c0'],
+        'diverging': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850']
+    },
+    {
+        'name': 'Purples',
+        'sequential': 'Purples',
+        'categorical': ['#3f007d', '#6a51a3', '#807dba', '#9e9ac8', '#dadaeb'],
+        'diverging': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850']
+    },
+    {
+        'name': 'Oranges',
+        'sequential': 'Oranges',
+        'categorical': ['#7f3b08', '#b85a0e', '#e68216', '#f39c2b', '#fddfb2'],
+        'diverging': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850']
+    },
+    {
+        'name': 'Spectral',
+        'sequential': 'Spectral',
+        'categorical': ['#9e0142', '#d53e4f', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#e6f598', '#abdda4', '#66c2a5', '#3288bd', '#5e4fa2'],
+        'diverging': ['#9e0142', '#d53e4f', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#e6f598', '#abdda4', '#66c2a5', '#3288bd', '#5e4fa2']
+    },
+    {
+        'name': 'Coolwarm',
+        'sequential': 'Coolwarm',
+        'categorical': ['#3b4cc0', '#5d71d0', '#8195e0', '#a5b8f0', '#d5e3ff'],
+        'diverging': ['#b40426', '#d94e3c', '#f68b5b', '#fdbb84', '#f7f7f7', '#b9e0f2', '#74add1', '#3f7eb6', '#2c5c8a']
+    },
+    {
+        'name': 'Viridis (Alternative)',
+        'sequential': 'Viridis',
+        'categorical': ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
+        'diverging': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850']
+    },
+    {
+        'name': 'Electric',
+        'sequential': 'Electric',
+        'categorical': ['#0d0887', '#5e01a6', '#b12a90', '#e16462', '#fca636'],
+        'diverging': ['#d73027', '#f46d43', '#fdae61', '#fee08b', '#ffffbf', '#d9ef8b', '#a6d96a', '#66bd63', '#1a9850']
+    }
+]
+
+# Random palette selection at startup
 if 'color_palette' not in st.session_state:
     st.session_state.color_palette = random.choice(COLOR_PALETTES)
 
-# Конфигурация страницы
+# Initialize plot color palette (user selectable)
+if 'plot_palette' not in st.session_state:
+    st.session_state['plot_palette'] = PLOT_COLOR_PALETTES[0]  # Default to Viridis
+
+# Page configuration
 st.set_page_config(
     page_title="UnIst Analytics",
     page_icon="📚",
@@ -195,7 +296,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Загрузка логотипа
+# Logo loading
 def get_logo_html():
     if os.path.exists("logo.png"):
         with open("logo.png", "rb") as f:
@@ -203,7 +304,7 @@ def get_logo_html():
         return f'<img src="data:image/png;base64,{logo_data}" style="height: 60px; margin-right: 10px;">'
     return ""
 
-# Кастомный CSS с динамической цветовой палитрой
+# Custom CSS with dynamic color palette
 def get_custom_css():
     colors = st.session_state.color_palette
     return f"""
@@ -239,6 +340,18 @@ def get_custom_css():
         color: {colors['background']};
         transform: translateY(-2px);
         box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }}
+    
+    /* Secondary button */
+    .stButton > button[kind="secondary"] {{
+        background: transparent;
+        color: {colors['secondary']};
+        border: 2px solid {colors['secondary']};
+    }}
+    
+    .stButton > button[kind="secondary"]:hover {{
+        background: {colors['secondary']};
+        color: {colors['background']};
     }}
     
     /* Input fields */
@@ -281,6 +394,51 @@ def get_custom_css():
         box-shadow: 0 5px 20px rgba(0,0,0,0.2);
     }}
     
+    /* Steps indicator */
+    .step-container {{
+        display: flex;
+        justify-content: space-between;
+        margin: 2rem 0;
+        position: relative;
+    }}
+    
+    .step {{
+        flex: 1;
+        text-align: center;
+        padding: 1rem;
+        background: rgba(255,255,255,0.05);
+        border: 2px solid {colors['border']};
+        border-radius: 10px;
+        position: relative;
+        transition: all 0.3s;
+        margin: 0 5px;
+    }}
+    
+    .step.active {{
+        border-color: {colors['primary']};
+        background: linear-gradient(135deg, {colors['primary']}20, {colors['secondary']}20);
+    }}
+    
+    .step.completed {{
+        border-color: {colors['success']};
+        background: {colors['success']}20;
+    }}
+    
+    .step-number {{
+        width: 30px;
+        height: 30px;
+        background: {colors['primary']};
+        color: white;
+        border-radius: 50%;
+        display: inline-block;
+        line-height: 30px;
+        margin-bottom: 0.5rem;
+    }}
+    
+    .step.completed .step-number {{
+        background: {colors['success']};
+    }}
+    
     /* Tabs */
     .stTabs [data-baseweb="tab-list"] {{
         gap: 10px;
@@ -321,19 +479,36 @@ def get_custom_css():
     }}
     
     /* Success/Warning/Info boxes */
-    .stSuccess {{
+    .success-box {{
         background-color: {colors['success']}20;
-        border-left-color: {colors['success']};
+        border-left: 4px solid {colors['success']};
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
     }}
     
-    .stWarning {{
+    .warning-box {{
         background-color: {colors['warning']}20;
-        border-left-color: {colors['warning']};
+        border-left: 4px solid {colors['warning']};
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
     }}
     
-    .stInfo {{
+    .info-box {{
         background-color: {colors['info']}20;
-        border-left-color: {colors['info']};
+        border-left: 4px solid {colors['info']};
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
+    }}
+    
+    .error-box {{
+        background-color: {colors['warning']}20;
+        border-left: 4px solid {colors['warning']};
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
     }}
     
     /* Sidebar */
@@ -384,10 +559,10 @@ def get_custom_css():
     </style>
     """
 
-# Применяем кастомный CSS
+# Apply custom CSS
 st.markdown(get_custom_css(), unsafe_allow_html=True)
 
-# Заголовок с логотипом
+# Header with logo
 logo_html = get_logo_html()
 st.markdown(f"""
 <div style="display: flex; align-items: center; margin-bottom: 20px;">
@@ -401,14 +576,16 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ─── CONFIGURATION ────────────────────────────────────────────────────────────
-
+# Configuration
 CACHE_DIR = "cache"
 LOG_DIR = "logs"
 CROSSREF_EMAIL = "your.email@example.com"  # Replace with your email
 MAX_WORKERS = 7
 RATE_LIMIT_DELAY = 0.7
 MAX_RETRIES = 5
+MAX_PAPERS_TO_ANALYZE = 10000  # Maximum papers to process
+MAX_PAGES = 50  # Maximum pages to fetch (200 papers per page)
+WARN_PAPERS_THRESHOLD = 5000  # Show warning above this
 
 # Create directories
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -426,10 +603,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ─── INITIALIZE SESSION STATE ────────────────────────────────────────────
-
+# Initialize session state for step-by-step workflow
+if 'step' not in st.session_state:
+    st.session_state['step'] = 1  # 1: Search, 2: Period, 3: Results
 if 'selected_ror' not in st.session_state:
     st.session_state.selected_ror = None
+if 'selected_org_name' not in st.session_state:
+    st.session_state.selected_org_name = None
+if 'selected_org_country' not in st.session_state:
+    st.session_state.selected_org_country = None
 if 'org_search_results' not in st.session_state:
     st.session_state.org_search_results = None
 if 'analysis_complete' not in st.session_state:
@@ -450,9 +632,24 @@ if 'cs_data' not in st.session_state:
     st.session_state.cs_data = None
 if 'issn_mapping' not in st.session_state:
     st.session_state.issn_mapping = {}
+if 'recent_institutions' not in st.session_state:
+    st.session_state['recent_institutions'] = []
+if 'expanded_details' not in st.session_state:
+    st.session_state['expanded_details'] = {}
+if 'search_query' not in st.session_state:
+    st.session_state['search_query'] = ''
+if 'search_performed' not in st.session_state:
+    st.session_state['search_performed'] = False
+if 'year_input_text' not in st.session_state:
+    st.session_state['year_input_text'] = ''
+if 'papers_data' not in st.session_state:
+    st.session_state['papers_data'] = None
+if 'validation_stats' not in st.session_state:
+    st.session_state['validation_stats'] = None
+if 'total_papers_estimate' not in st.session_state:
+    st.session_state['total_papers_estimate'] = 0
 
-# ─── CACHING ───────────────────────────────────────────────────────────
-
+# Cache class
 class Cache:
     """Cache for API results"""
     
@@ -493,11 +690,63 @@ class Cache:
 
 cache = Cache()
 
-# ─── ISSN NORMALIZATION AND MAPPING ────────────────────────────────────────
+# Database loading functions from second code
+def normalize_issn(issn_str):
+    """
+    Normalize ISSN to 8-digit format without hyphens.
+    Handles:
+    - With hyphens: 0007-9235 -> 00079235
+    - Without hyphens: 15299732 -> 15299732
+    - With X at the end: 1234-567X -> 1234567X
+    """
+    if pd.isna(issn_str) or not issn_str:
+        return ""
+    
+    # Convert to string and remove any whitespace
+    issn_str = str(issn_str).strip().upper()
+    
+    # Remove hyphens and spaces
+    clean = re.sub(r'[\s-]', '', issn_str)
+    
+    # If it's all digits or digits with X at the end, pad to 8 digits
+    if re.match(r'^\d{7}[\dX]?$', clean) or re.match(r'^\d{1,7}$', clean):
+        if len(clean) < 8:
+            clean = clean.zfill(8)
+        if len(clean) == 8:
+            return clean
+    
+    return ""
+
+def format_issn_with_hyphen(issn: str) -> Optional[str]:
+    """
+    Format ISSN to standard format with hyphen: XXXX-XXXX
+    Handles:
+    - 20734352 -> 2073-4352
+    - 69358 -> 0006-9358 (pad with zeros)
+    - 2073-4352 -> 2073-4352 (already formatted)
+    """
+    if pd.isna(issn) or not issn:
+        return None
+    
+    # Convert to string and remove any whitespace
+    issn_str = str(issn).strip().upper()
+    
+    # Remove existing hyphens first
+    clean = re.sub(r'[\s-]', '', issn_str)
+    
+    # If it's all digits or digits with X, pad to 8 characters
+    if re.match(r'^\d+$', clean) or re.match(r'^\d+X$', clean):
+        if len(clean) < 8:
+            clean = clean.zfill(8)
+        if len(clean) == 8:
+            # Insert hyphen after 4th character
+            return f"{clean[:4]}-{clean[4:]}"
+    
+    return None
 
 @st.cache_data
 def load_if_data():
-    """Load IF.xlsx file with caching"""
+    """Load IF.xlsx file with caching (WoS database)"""
     if os.path.exists("IF.xlsx"):
         df = pd.read_excel("IF.xlsx")
         # Normalize ISSN columns
@@ -510,7 +759,7 @@ def load_if_data():
 
 @st.cache_data
 def load_cs_data():
-    """Load CS.xlsx file with caching"""
+    """Load CS.xlsx file with caching (Scopus database)"""
     if os.path.exists("CS.xlsx"):
         df = pd.read_excel("CS.xlsx")
         # Normalize ISSN columns
@@ -525,8 +774,29 @@ def load_cs_data():
             # Handle multiple quartiles - take the best (smallest number)
             if pd.notna(row.get('Quartile')):
                 quartile_val = str(row['Quartile']).strip()
-                if quartile_val.isdigit():
-                    quartile_num = int(quartile_val)
+                # Extract the highest quartile (lowest number) if multiple
+                if ',' in quartile_val:
+                    quartile_parts = [q.strip() for q in quartile_val.split(',')]
+                    # Find the quartile with the smallest number
+                    quartile_numbers = []
+                    for q in quartile_parts:
+                        # Extract number from Q1, Q2, etc. or just number
+                        q_num_match = re.search(r'(\d+)', q)
+                        if q_num_match:
+                            quartile_numbers.append(int(q_num_match.group(1)))
+                    if quartile_numbers:
+                        quartile_num = min(quartile_numbers)
+                    else:
+                        quartile_num = None
+                else:
+                    # Single quartile value
+                    q_num_match = re.search(r'(\d+)', quartile_val)
+                    if q_num_match:
+                        quartile_num = int(q_num_match.group(1))
+                    else:
+                        quartile_num = None
+                
+                if quartile_num is not None:
                     # Add to processing list
                     result_rows.append({
                         'Title': row.get('Title', ''),
@@ -560,38 +830,12 @@ def load_cs_data():
         return df
     return None
 
-def normalize_issn(issn_str):
-    """
-    Normalize ISSN to format XXXX-XXXX
-    Examples:
-    24510769 -> 2451-0769
-    5912385 -> 0591-2385
-    445401 -> 0044-5401
-    """
-    if pd.isna(issn_str) or not issn_str:
-        return ""
-    
-    # Convert to string and remove any non-digit characters
-    issn_clean = re.sub(r'\D', '', str(issn_str))
-    
-    if not issn_clean:
-        return ""
-    
-    # Pad with leading zeros to make 8 digits
-    issn_padded = issn_clean.zfill(8)
-    
-    # Format as XXXX-XXXX
-    if len(issn_padded) == 8:
-        return f"{issn_padded[:4]}-{issn_padded[4:]}"
-    
-    return ""
-
 @st.cache_data
 def create_issn_mapping(if_df, cs_df):
     """Create mapping from ISSN to IF and CiteScore data"""
     mapping = {}
     
-    # Process IF data
+    # Process IF data (WoS)
     if if_df is not None:
         for _, row in if_df.iterrows():
             # Process ISSN
@@ -614,7 +858,7 @@ def create_issn_mapping(if_df, cs_df):
                         'if_name': mapping.get(eissn, {}).get('if_name', row.get('Name', ''))
                     }
     
-    # Process CS data
+    # Process CS data (Scopus)
     if cs_df is not None:
         for _, row in cs_df.iterrows():
             # Process Print ISSN
@@ -652,8 +896,7 @@ if st.session_state.if_df is not None or st.session_state.cs_df is not None:
     if 'issn_mapping' not in st.session_state or not st.session_state.issn_mapping:
         st.session_state.issn_mapping = create_issn_mapping(st.session_state.if_df, st.session_state.cs_df)
 
-# ─── ORGANIZATION NAME NORMALIZATION ─────────────────────────────────────
-
+# Organization name normalization
 def normalize_org_name(name):
     """
     Normalize organization name for search:
@@ -685,8 +928,30 @@ def normalize_for_fuzzy(name):
     
     return ' '.join(words)
 
-# ─── ORGANIZATION SEARCH ────────────────────────────────────────
+def is_ror_id(text: str) -> bool:
+    """Check if text is a valid ROR ID"""
+    pattern = r'^[a-z0-9]{9,10}$'
+    return bool(re.match(pattern, text.strip()))
 
+def add_to_recent_institutions(inst: Dict):
+    """Add institution to recent list"""
+    recent = st.session_state['recent_institutions']
+    
+    # Check if already exists
+    for i, existing in enumerate(recent):
+        if existing['ror'] == inst['ror']:
+            # Move to front
+            recent.pop(i)
+            recent.insert(0, inst)
+            break
+    else:
+        # Add new
+        recent.insert(0, inst)
+    
+    # Keep only last 5
+    st.session_state['recent_institutions'] = recent[:5]
+
+# Organization search functions
 @retry(
     retry=retry_if_exception_type((requests.exceptions.RequestException,)),
     stop=stop_after_attempt(MAX_RETRIES),
@@ -798,18 +1063,48 @@ def search_organization_by_name(org_name):
     
     return results_list
 
+def get_institution_by_ror(ror_id: str) -> Optional[Dict]:
+    """Get institution by ROR ID"""
+    params = {
+        'filter': f'ror:{ror_id}',
+        'mailto': CROSSREF_EMAIL
+    }
+    
+    try:
+        response = requests.get("https://api.openalex.org/institutions", params=params, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        
+        if data and 'results' in data and len(data['results']) > 0:
+            inst = data['results'][0]
+            return {
+                'id': inst.get('id', '').replace('https://openalex.org/', ''),
+                'ror': inst.get('ror'),
+                'display_name': inst.get('display_name'),
+                'country': inst.get('country_code'),
+                'type': inst.get('type'),
+                'works_count': inst.get('works_count', 0)
+            }
+    except Exception as e:
+        logger.error(f"Error getting institution by ROR {ror_id}: {e}")
+    
+    return None
+
 def select_organization(org_input):
     """
     Determine organization ROR from input
-    Returns (ror_id, error_or_results)
+    Returns (ror_id, error_or_results, org_name, org_country)
     """
     org_input = org_input.strip()
     
     # Check if input is ROR ID
-    ror_pattern = r'^[a-zA-Z0-9]+$'
-    if re.match(ror_pattern, org_input) and len(org_input) > 5:
+    if is_ror_id(org_input):
         logger.info(f"ROR ID provided: {org_input}")
-        return org_input, None
+        inst = get_institution_by_ror(org_input)
+        if inst:
+            return org_input, None, inst['display_name'], inst.get('country', '')
+        else:
+            return None, "Organization not found", None, None
     
     # Check if URL with ROR
     if 'ror.org/' in org_input:
@@ -817,7 +1112,11 @@ def select_organization(org_input):
         if match:
             ror_id = match.group(1)
             logger.info(f"Extracted ROR ID from URL: {ror_id}")
-            return ror_id, None
+            inst = get_institution_by_ror(ror_id)
+            if inst:
+                return ror_id, None, inst['display_name'], inst.get('country', '')
+            else:
+                return None, "Organization not found", None, None
     
     # Search by name
     logger.info(f"Searching organization by name: {org_input}")
@@ -825,19 +1124,18 @@ def select_organization(org_input):
     
     if not results:
         logger.warning(f"No organizations found: {org_input}")
-        return None, "Organization not found"
+        return None, "Organization not found", None, None
     
     if len(results) == 1:
         org = results[0]
         ror_id = org['ror'].replace('https://ror.org/', '') if org['ror'] else None
         logger.info(f"Found single organization: {org['display_name']} (ROR: {ror_id})")
-        return ror_id, None
+        return ror_id, None, org['display_name'], org.get('country', '')
     
     logger.info(f"Found {len(results)} organizations")
-    return None, results
+    return None, results, None, None
 
-# ─── YEAR PARSING ───────────────────────────────────────────────────────
-
+# Year parsing functions
 def parse_year_input(s):
     """Parse year string: 2023, 2022-2024, 2021,2023-2025"""
     years = set()
@@ -857,6 +1155,24 @@ def parse_year_input(s):
             except:
                 pass
     return sorted(years)
+
+def validate_year_range(years: List[int]) -> Tuple[bool, str]:
+    """Validate year range for reasonableness"""
+    current_year = datetime.now().year
+    
+    if not years:
+        return False, "No years specified"
+    
+    if min(years) < 1900:
+        return False, "Year cannot be before 1900"
+    
+    if max(years) > current_year + 1:
+        return False, f"Year cannot be after {current_year + 1}"
+    
+    if len(years) > 30:
+        return False, "Period cannot exceed 30 years (performance reasons)"
+    
+    return True, "Valid"
 
 def get_expanded_years(original_years):
     """Expand period by +-1 year"""
@@ -893,8 +1209,32 @@ def get_late_date(online_str, print_str):
             pass
     return max(candidates) if candidates else None
 
-# ─── DATA COLLECTION ───────────────────────────────────────────────
+def get_total_papers_count(ror: str, years: List[int]) -> int:
+    """Get total number of papers for institution in given years (expanded range)"""
+    expanded_years = get_expanded_years(years)
+    filter_parts = [
+        f"institutions.ror:{ror}",
+        "has_doi:true",
+        years_to_filter_str(expanded_years)
+    ]
+    filter_str = ",".join(p for p in filter_parts if p)
+    
+    params = {
+        'filter': filter_str,
+        'per-page': 1,
+        'mailto': CROSSREF_EMAIL
+    }
+    
+    try:
+        response = requests.get("https://api.openalex.org/works", params=params, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        return data.get('meta', {}).get('count', 0)
+    except Exception as e:
+        logger.error(f"Error getting total papers count: {e}")
+        return 0
 
+# Crossref data functions
 @retry(
     retry=retry_if_exception_type((requests.exceptions.RequestException,)),
     stop=stop_after_attempt(MAX_RETRIES),
@@ -1004,7 +1344,7 @@ def get_crossref_data(doi):
         references_count = len(msg.get('reference', [])) if 'reference' in msg else 0
         citations_cr = msg.get('is-referenced-by-count', 0)
         
-        # Получаем DOI в чистом виде
+        # Get DOI in clean form
         doi_clean_final = msg.get('DOI', '')
         if not doi_clean_final:
             doi_clean_final = doi_clean
@@ -1104,7 +1444,7 @@ def get_openalex_data(doi, target_ror=None):
         publication_year = work.get('publication_year')
         publication_date = work.get('publication_date')
         
-        # Получаем DOI в чистом виде из OpenAlex
+        # Get DOI in clean form from OpenAlex
         doi_oa = work.get('doi', '')
         if doi_oa:
             doi_oa = re.sub(r'^(https?://(dx\.)?doi\.org/|doi:?)', '', doi_oa, flags=re.I)
@@ -1200,8 +1540,7 @@ def fetch_all_dois_openalex(ror, years_expanded):
     
     return all_dois, None
 
-# ─── PARALLEL DOI PROCESSING ────────────────────────────────────────────
-
+# Parallel DOI processing
 def process_doi_complete(doi, target_ror=None):
     """
     Complete DOI processing: get data from Crossref and OpenAlex
@@ -1273,7 +1612,7 @@ def process_dois_parallel(dois, target_ror=None, max_workers=MAX_WORKERS):
                 total_processed += 1
                 
                 # Update progress
-                progress = min(total_processed / total_dois, 1.0)
+                progress = total_processed / total_dois
                 progress_bar.progress(progress)
                 status_text.text(f"🔍 Processing DOIs: {total_processed}/{total_dois} (Attempt {attempt})")
         
@@ -1296,8 +1635,7 @@ def process_dois_parallel(dois, target_ror=None, max_workers=MAX_WORKERS):
     
     return results, errors
 
-# ─── ANALYSIS FUNCTIONS ────────────────────────────────────────
-
+# Analysis functions
 def extract_authors(authors_str):
     """Extract author names from semicolon-separated string"""
     if not authors_str:
@@ -1315,6 +1653,58 @@ def extract_affiliations(affiliations_str):
     if not affiliations_str:
         return []
     return [a.strip() for a in affiliations_str.split(';') if a.strip()]
+
+def check_issn_in_mapping(issn_str, issn_mapping):
+    """
+    Check if any ISSN matches WoS or Scopus databases.
+    Returns: (wos_info, scopus_info)
+    """
+    wos_info = {'indexed': False, 'if': None, 'quartile': None, 'title': None}
+    scopus_info = {'indexed': False, 'citescore': None, 'quartile': None, 'title': None}
+    
+    if pd.isna(issn_str) or not issn_str:
+        return wos_info, scopus_info
+    
+    # Split multiple ISSNs
+    issns = [i.strip() for i in str(issn_str).split(';')]
+    
+    for issn in issns:
+        # Try different formats
+        issn_variants = [issn]
+        
+        # Add normalized version (without hyphen)
+        normalized = normalize_issn(issn)
+        if normalized and normalized != issn:
+            issn_variants.append(normalized)
+        
+        # Add formatted version (with hyphen)
+        formatted = format_issn_with_hyphen(issn)
+        if formatted and formatted != issn and formatted != normalized:
+            issn_variants.append(formatted)
+        
+        for issn_var in issn_variants:
+            if issn_var in issn_mapping:
+                mapping = issn_mapping[issn_var]
+                
+                # WoS info
+                if 'if' in mapping and mapping['if']:
+                    wos_info = {
+                        'indexed': True,
+                        'if': mapping['if'],
+                        'quartile': mapping.get('if_quartile', ''),
+                        'title': mapping.get('if_name', '')
+                    }
+                
+                # Scopus info
+                if 'cs' in mapping and mapping['cs']:
+                    scopus_info = {
+                        'indexed': True,
+                        'citescore': mapping['cs'],
+                        'quartile': mapping.get('cs_quartile', ''),
+                        'title': mapping.get('cs_title', '')
+                    }
+    
+    return wos_info, scopus_info
 
 def create_affiliation_network(df, period_only=True):
     """
@@ -1486,19 +1876,31 @@ def add_issn_metrics_to_df(df, issn_mapping):
         cs_q_vals = []
         
         for issn in issns:
-            # Normalize ISSN for lookup
-            issn_norm = normalize_issn(issn)
-            if issn_norm in issn_mapping:
-                mapping = issn_mapping[issn_norm]
-                
-                if 'if' in mapping and mapping['if']:
-                    if_vals.append(str(mapping['if']))
-                if 'if_quartile' in mapping and mapping['if_quartile']:
-                    if_q_vals.append(str(mapping['if_quartile']))
-                if 'cs' in mapping and mapping['cs']:
-                    cs_vals.append(str(mapping['cs']))
-                if 'cs_quartile' in mapping and mapping['cs_quartile']:
-                    cs_q_vals.append(str(mapping['cs_quartile']))
+            # Try different formats
+            issn_variants = [issn]
+            
+            # Add normalized version (without hyphen)
+            normalized = normalize_issn(issn)
+            if normalized and normalized != issn:
+                issn_variants.append(normalized)
+            
+            # Add formatted version (with hyphen)
+            formatted = format_issn_with_hyphen(issn)
+            if formatted and formatted != issn and formatted != normalized:
+                issn_variants.append(formatted)
+            
+            for issn_var in issn_variants:
+                if issn_var in issn_mapping:
+                    mapping = issn_mapping[issn_var]
+                    
+                    if 'if' in mapping and mapping['if']:
+                        if_vals.append(str(mapping['if']))
+                    if 'if_quartile' in mapping and mapping['if_quartile']:
+                        if_q_vals.append(str(mapping['if_quartile']))
+                    if 'cs' in mapping and mapping['cs']:
+                        cs_vals.append(str(mapping['cs']))
+                    if 'cs_quartile' in mapping and mapping['cs_quartile']:
+                        cs_q_vals.append(str(mapping['cs_quartile']))
         
         # Take first non-empty value
         if_val = if_vals[0] if if_vals else ''
@@ -1517,10 +1919,136 @@ def add_issn_metrics_to_df(df, issn_mapping):
     metrics_df = df['issn'].apply(get_metrics)
     df = pd.concat([df, metrics_df], axis=1)
     
+    # Add WoS and Scopus indexing flags
+    def get_indexing_flags(row):
+        wos_indexed = False
+        scopus_indexed = False
+        
+        if pd.notna(row.get('IF')) and row['IF']:
+            wos_indexed = True
+        if pd.notna(row.get('CS')) and row['CS']:
+            scopus_indexed = True
+        
+        return pd.Series({
+            'wos_indexed': wos_indexed,
+            'scopus_indexed': scopus_indexed
+        })
+    
+    indexing_df = df.apply(get_indexing_flags, axis=1)
+    df = pd.concat([df, indexing_df], axis=1)
+    
     return df
 
-# ─── EXCEL EXPORT ────────────────────────────────────────
+def create_results_dataframe(results, target_years_set):
+    """Create final DataFrame with results"""
+    
+    df = pd.DataFrame(results)
+    
+    if df.empty:
+        return df
+    
+    df['belongs_to_period'] = df.apply(
+        lambda row: row['late_dt'] is not None and row['late_dt'].year in target_years_set 
+        if pd.notna(row['late_dt']) else False, 
+        axis=1
+    )
+    
+    if 'late_dt' in df.columns:
+        df['late_date'] = df['late_dt'].apply(
+            lambda x: x.strftime("%Y-%m-%d") if pd.notna(x) else None
+        )
+        df = df.drop('late_dt', axis=1)
+    
+    # Add IF and CiteScore metrics
+    if st.session_state.issn_mapping:
+        df = add_issn_metrics_to_df(df, st.session_state.issn_mapping)
+    
+    column_order = [
+        'doi', 'title', 'belongs_to_period', 'late_date', 'late_year',
+        'print_date', 'online_date', 'publication_year', 'publication_date',
+        'authors', 'authors_count', 'orcids',
+        'affiliations', 'countries', 'journal', 'issn', 'publisher', 'type',
+        'volume', 'issue', 'pages', 'IF', 'IF_Q', 'CS', 'CS_Q',
+        'wos_indexed', 'scopus_indexed', 'is_oa', 'funding',
+        'references_count', 'citations_cr', 'citations_oa',
+        'openalex_id', 'language', 'status'
+    ]
+    
+    existing_cols = [col for col in column_order if col in df.columns]
+    df = df[existing_cols]
+    
+    return df
 
+# Run analysis with progress
+def run_analysis_with_progress(ror, years, total_estimated, progress_container, status_container):
+    """Run complete analysis with progress tracking"""
+    try:
+        # Parse years
+        orig_years_set = set(years)
+        exp_years = get_expanded_years(years)
+        
+        status_container.text("Loading data from OpenAlex...")
+        
+        papers_to_fetch = min(total_estimated, MAX_PAPERS_TO_ANALYZE)
+        status_container.text(f"Loading up to {papers_to_fetch:,} papers...")
+        
+        # Collect DOIs
+        dois, err = fetch_all_dois_openalex(ror, exp_years)
+        
+        if err:
+            status_container.text(f"❌ Error: {err}")
+            return False
+        elif not dois:
+            status_container.text("❌ No publications with DOI in expanded period")
+            return False
+        
+        status_container.text(f"✅ Unique DOIs collected: {len(dois):,}")
+        
+        # Process DOIs
+        status_container.text("Retrieving enhanced data from Crossref and OpenAlex...")
+        status_container.text(f"   → Using {MAX_WORKERS} parallel threads")
+        status_container.text(f"   → Max retries: {MAX_RETRIES}")
+        
+        results, errors = process_dois_parallel(dois, ror)
+        
+        if results:
+            df = create_results_dataframe(results, orig_years_set)
+            st.session_state.results_df = df
+            st.session_state.errors_list = errors
+            st.session_state.orig_years_list = years
+            st.session_state.exp_years = exp_years
+            st.session_state.analysis_complete = True
+            st.session_state.papers_data = df.to_dict('records')
+            
+            # Generate validation stats
+            validation_stats = {
+                'total': len(dois),
+                'with_doi': len(dois),
+                'validated': len(results),
+                'kept': len(df[df['belongs_to_period'] == True]),
+                'rejected': len(df[df['belongs_to_period'] == False]),
+                'no_doi': 0,
+                'not_found': len(errors),
+                'year_mismatch': 0
+            }
+            st.session_state.validation_stats = validation_stats
+            
+            status_container.text(f"""
+            ✅ Processing complete!
+            - Successful: {len(results):,}
+            - Errors: {len(errors):,}
+            """)
+            
+            return True
+        else:
+            status_container.text("❌ No successfully processed papers")
+            return False
+        
+    except Exception as e:
+        status_container.text(f"❌ Error: {str(e)}")
+        return False
+
+# Excel export function
 def export_to_excel(df, results, errors, selected_ror, orig_years_list, exp_years, 
                     filename=None):
     """
@@ -1564,7 +2092,10 @@ def export_to_excel(df, results, errors, selected_ror, orig_years_list, exp_year
             'Non-Open Access (in period)',
             'Average authors per paper (in period)',
             'Average citations (Crossref) (in period)',
-            'Average citations (OpenAlex) (in period)'
+            'Average citations (OpenAlex) (in period)',
+            'WoS Indexed (in period)',
+            'Scopus Indexed (in period)',
+            'Indexed in Both (in period)'
         ],
         'Value': [
             len(df) + len(errors),
@@ -1575,7 +2106,10 @@ def export_to_excel(df, results, errors, selected_ror, orig_years_list, exp_year
             len(belong) - belong['is_oa'].sum() if not belong.empty else 0,
             belong['authors_count'].mean() if not belong.empty else 0,
             belong['citations_cr'].mean() if not belong.empty else 0,
-            belong['citations_oa'].mean() if not belong.empty else 0
+            belong['citations_oa'].mean() if not belong.empty else 0,
+            belong['wos_indexed'].sum() if not belong.empty else 0,
+            belong['scopus_indexed'].sum() if not belong.empty else 0,
+            ((belong['wos_indexed'] & belong['scopus_indexed']).sum()) if not belong.empty else 0
         ]
     })
     
@@ -1653,7 +2187,25 @@ def export_to_excel(df, results, errors, selected_ror, orig_years_list, exp_year
     })
     oa_df.to_excel(writer, sheet_name='OA Statistics', index=False)
     
-    # ===== SHEET 10: Network Statistics (Affiliations) =====
+    # ===== SHEET 10: Database Indexing =====
+    indexing_stats = pd.DataFrame({
+        'Metric': ['WoS Indexed', 'Scopus Indexed', 'Both Databases', 'Neither'],
+        'Count': [
+            belong['wos_indexed'].sum() if not belong.empty else 0,
+            belong['scopus_indexed'].sum() if not belong.empty else 0,
+            ((belong['wos_indexed'] & belong['scopus_indexed']).sum()) if not belong.empty else 0,
+            len(belong) - ((belong['wos_indexed'] | belong['scopus_indexed']).sum()) if not belong.empty else 0
+        ],
+        'Percentage': [
+            (belong['wos_indexed'].sum() / len(belong) * 100) if not belong.empty else 0,
+            (belong['scopus_indexed'].sum() / len(belong) * 100) if not belong.empty else 0,
+            ((belong['wos_indexed'] & belong['scopus_indexed']).sum() / len(belong) * 100) if not belong.empty else 0,
+            ((len(belong) - (belong['wos_indexed'] | belong['scopus_indexed']).sum()) / len(belong) * 100) if not belong.empty else 0
+        ]
+    })
+    indexing_stats.to_excel(writer, sheet_name='Database Indexing', index=False)
+    
+    # ===== SHEET 11: Network Statistics (Affiliations) =====
     G_aff, aff_stats = create_affiliation_network(df)
     
     aff_network_data = []
@@ -1670,7 +2222,7 @@ def export_to_excel(df, results, errors, selected_ror, orig_years_list, exp_year
         aff_network_df = aff_network_df.sort_values('Papers', ascending=False)
         aff_network_df.to_excel(writer, sheet_name='Affiliation Network', index=False)
     
-    # ===== SHEET 11: Network Statistics (Countries) =====
+    # ===== SHEET 12: Network Statistics (Countries) =====
     G_country, country_stats = create_country_network(df)
     
     country_network_data = []
@@ -1687,21 +2239,24 @@ def export_to_excel(df, results, errors, selected_ror, orig_years_list, exp_year
         country_network_df = country_network_df.sort_values('Papers', ascending=False)
         country_network_df.to_excel(writer, sheet_name='Country Network', index=False)
     
-    # ===== SHEET 12: Errors =====
+    # ===== SHEET 13: Errors =====
     if errors:
         errors_df = pd.DataFrame({'DOI': errors, 'Status': 'Failed'})
         errors_df.to_excel(writer, sheet_name='Errors', index=False)
     
-    # ===== SHEET 13: Metadata =====
+    # ===== SHEET 14: Metadata =====
     metadata = pd.DataFrame({
         'Parameter': [
             'Analysis Date',
             'ROR ID',
+            'Organization Name',
             'Original Period',
             'Search Period',
             'Total DOIs Found',
             'Successfully Processed',
             'Failed DOIs',
+            'WoS Indexed (in period)',
+            'Scopus Indexed (in period)',
             'Cache Directory',
             'Log File',
             'Excel File'
@@ -1709,11 +2264,14 @@ def export_to_excel(df, results, errors, selected_ror, orig_years_list, exp_year
         'Value': [
             datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             selected_ror,
+            st.session_state.get('selected_org_name', ''),
             ', '.join(map(str, orig_years_list)),
             ', '.join(map(str, exp_years)),
             len(df) + len(errors),
             len(df),
             len(errors),
+            belong['wos_indexed'].sum() if not belong.empty else 0,
+            belong['scopus_indexed'].sum() if not belong.empty else 0,
             CACHE_DIR,
             log_filename,
             filename
@@ -1731,9 +2289,11 @@ def export_to_excel(df, results, errors, selected_ror, orig_years_list, exp_year
     
     return filename
 
+# Visualization functions
 def create_enhanced_visualizations(df):
     """Create enhanced scientific visualizations"""
     colors = st.session_state.color_palette
+    plot_palette = st.session_state['plot_palette']
     
     # Filter data for period
     belong = df[df['belongs_to_period'] == True].copy()
@@ -1747,7 +2307,7 @@ def create_enhanced_visualizations(df):
     fig1, ax1 = plt.subplots(figsize=(10, 6))
     year_counts = belong['late_year'].value_counts().sort_index()
     ax1.bar(year_counts.index, year_counts.values, 
-            color=colors['primary'], edgecolor='black', linewidth=1)
+            color=plot_palette['categorical'][0], edgecolor='black', linewidth=1)
     ax1.set_xlabel('Year', fontweight='bold')
     ax1.set_ylabel('Number of Publications', fontweight='bold')
     ax1.set_title('Publication Timeline', fontweight='bold', pad=20)
@@ -1760,7 +2320,7 @@ def create_enhanced_visualizations(df):
     fig2, ax2 = plt.subplots(figsize=(10, 6))
     journal_counts = belong['journal'].value_counts().head(10)
     ax2.barh(range(len(journal_counts)), journal_counts.values, 
-             color=colors['secondary'], edgecolor='black', linewidth=1)
+             color=plot_palette['categorical'][1], edgecolor='black', linewidth=1)
     ax2.set_yticks(range(len(journal_counts)))
     ax2.set_yticklabels([j[:30] + '...' if len(j) > 30 else j for j in journal_counts.index])
     ax2.set_xlabel('Number of Publications', fontweight='bold')
@@ -1775,7 +2335,7 @@ def create_enhanced_visualizations(df):
     # Crossref citations
     cr_citations = belong['citations_cr'].dropna()
     if not cr_citations.empty:
-        ax3.hist(cr_citations, bins=30, color=colors['primary'], 
+        ax3.hist(cr_citations, bins=30, color=plot_palette['categorical'][0], 
                 edgecolor='black', alpha=0.7)
         ax3.set_xlabel('Citations (Crossref)', fontweight='bold')
         ax3.set_ylabel('Frequency', fontweight='bold')
@@ -1785,7 +2345,7 @@ def create_enhanced_visualizations(df):
     # OpenAlex citations
     oa_citations = belong['citations_oa'].dropna()
     if not oa_citations.empty:
-        ax4.hist(oa_citations, bins=30, color=colors['secondary'], 
+        ax4.hist(oa_citations, bins=30, color=plot_palette['categorical'][1], 
                 edgecolor='black', alpha=0.7)
         ax4.set_xlabel('Citations (OpenAlex)', fontweight='bold')
         ax4.set_ylabel('Frequency', fontweight='bold')
@@ -1833,8 +2393,8 @@ def create_enhanced_visualizations(df):
         fig5, ax6 = plt.subplots(figsize=(10, 6))
         oa_by_year = belong.groupby('late_year')['is_oa'].mean() * 100
         ax6.plot(oa_by_year.index, oa_by_year.values, marker='o', 
-                color=colors['accent'], linewidth=2, markersize=8)
-        ax6.fill_between(oa_by_year.index, oa_by_year.values, alpha=0.3, color=colors['accent'])
+                color=plot_palette['categorical'][2], linewidth=2, markersize=8)
+        ax6.fill_between(oa_by_year.index, oa_by_year.values, alpha=0.3, color=plot_palette['categorical'][2])
         ax6.set_xlabel('Year', fontweight='bold')
         ax6.set_ylabel('Open Access (%)', fontweight='bold')
         ax6.set_title('Open Access Trend Over Time', fontweight='bold', pad=20)
@@ -1843,49 +2403,221 @@ def create_enhanced_visualizations(df):
         plt.tight_layout()
         figs['oa_trend'] = fig5
     
+    # 6. Database indexing comparison
+    if 'wos_indexed' in belong.columns and 'scopus_indexed' in belong.columns:
+        fig6, ax7 = plt.subplots(figsize=(8, 6))
+        
+        wos_count = belong['wos_indexed'].sum()
+        scopus_count = belong['scopus_indexed'].sum()
+        both_count = (belong['wos_indexed'] & belong['scopus_indexed']).sum()
+        neither_count = len(belong) - (belong['wos_indexed'] | belong['scopus_indexed']).sum()
+        
+        categories = ['WoS Only', 'Scopus Only', 'Both', 'Neither']
+        values = [
+            wos_count - both_count,
+            scopus_count - both_count,
+            both_count,
+            neither_count
+        ]
+        
+        colors_list = [
+            plot_palette['categorical'][0],
+            plot_palette['categorical'][1],
+            plot_palette['categorical'][2],
+            plot_palette['categorical'][3] if len(plot_palette['categorical']) > 3 else '#95a5a6'
+        ]
+        
+        bars = ax7.bar(categories, values, color=colors_list, edgecolor='black', linewidth=1)
+        ax7.set_ylabel('Number of Publications', fontweight='bold')
+        ax7.set_title('Database Indexing Distribution', fontweight='bold', pad=20)
+        ax7.grid(True, alpha=0.3, linestyle='--', axis='y')
+        
+        # Add value labels on bars
+        for bar in bars:
+            height = bar.get_height()
+            ax7.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{int(height)}', ha='center', va='bottom')
+        
+        plt.tight_layout()
+        figs['indexing'] = fig6
+    
     return figs
 
-def create_results_dataframe(results, target_years_set):
-    """Create final DataFrame with results"""
-    
-    df = pd.DataFrame(results)
-    
-    if df.empty:
-        return df
-    
-    df['belongs_to_period'] = df.apply(
-        lambda row: row['late_dt'] is not None and row['late_dt'].year in target_years_set 
-        if pd.notna(row['late_dt']) else False, 
-        axis=1
+# Plotly visualization functions
+def apply_scientific_style(fig: go.Figure) -> go.Figure:
+    """Apply scientific style to plotly figures"""
+    fig.update_layout(
+        font=dict(
+            family="serif",
+            size=10,
+        ),
+        title_font=dict(
+            family="serif",
+            size=12,
+            weight="bold"
+        ),
+        title=dict(
+            x=0.5,  # Center title
+            xanchor='center'
+        ),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        hoverlabel=dict(
+            font_family="serif",
+            font_size=10
+        ),
+        margin=dict(l=60, r=30, t=60, b=60)
     )
     
-    if 'late_dt' in df.columns:
-        df['late_date'] = df['late_dt'].apply(
-            lambda x: x.strftime("%Y-%m-%d") if pd.notna(x) else None
-        )
-        df = df.drop('late_dt', axis=1)
+    fig.update_xaxes(
+        showline=True,
+        linewidth=1,
+        linecolor='black',
+        mirror=True,
+        ticks='outside',
+        tickwidth=1,
+        tickcolor='black',
+        ticklen=4,
+        gridcolor='lightgrey',
+        griddash='dot',
+        gridwidth=0.5,
+        showgrid=False,
+        title_font=dict(family="serif", size=11, weight="bold"),
+        tickfont=dict(family="serif", size=10)
+    )
     
-    # Add IF and CiteScore metrics
-    if st.session_state.issn_mapping:
-        df = add_issn_metrics_to_df(df, st.session_state.issn_mapping)
+    fig.update_yaxes(
+        showline=True,
+        linewidth=1,
+        linecolor='black',
+        mirror=True,
+        ticks='outside',
+        tickwidth=1,
+        tickcolor='black',
+        ticklen=4,
+        gridcolor='lightgrey',
+        griddash='dot',
+        gridwidth=0.5,
+        showgrid=False,
+        title_font=dict(family="serif", size=11, weight="bold"),
+        tickfont=dict(family="serif", size=10)
+    )
     
-    column_order = [
-        'doi', 'title', 'belongs_to_period', 'late_date', 'late_year',
-        'print_date', 'online_date', 'publication_year', 'publication_date',
-        'authors', 'authors_count', 'orcids',
-        'affiliations', 'countries', 'journal', 'issn', 'publisher', 'type',
-        'volume', 'issue', 'pages', 'IF', 'IF_Q', 'CS', 'CS_Q',
-        'is_oa', 'funding',
-        'references_count', 'citations_cr', 'citations_oa',
-        'openalex_id', 'language', 'status'
+    return fig
+
+def plot_yearly_publications(yearly_data: Dict[int, int], plot_palette: Dict):
+    """Plot yearly publications"""
+    years = sorted(yearly_data.keys())
+    counts = [yearly_data[y] for y in years]
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=years,
+        y=counts,
+        marker_color=plot_palette['categorical'][0],
+        marker_line_color='black',
+        marker_line_width=1,
+        name='Publications'
+    ))
+    
+    fig.update_layout(
+        title='Publications by Year',
+        xaxis_title='Year',
+        yaxis_title='Number of Publications',
+        hovermode='x',
+        showlegend=False
+    )
+    
+    fig = apply_scientific_style(fig)
+    fig.update_xaxes(tickangle=45)
+    return fig
+
+def plot_database_comparison(df, plot_palette: Dict):
+    """Plot database indexing comparison"""
+    belong = df[df['belongs_to_period'] == True].copy()
+    
+    if belong.empty:
+        return None
+    
+    wos_count = belong['wos_indexed'].sum()
+    scopus_count = belong['scopus_indexed'].sum()
+    both_count = (belong['wos_indexed'] & belong['scopus_indexed']).sum()
+    
+    fig = go.Figure()
+    
+    categories = ['WoS', 'Scopus', 'Both']
+    values = [wos_count, scopus_count, both_count]
+    
+    colors = [
+        plot_palette['categorical'][0],
+        plot_palette['categorical'][1],
+        plot_palette['categorical'][2]
     ]
     
-    existing_cols = [col for col in column_order if col in df.columns]
-    df = df[existing_cols]
+    fig.add_trace(go.Bar(
+        x=categories,
+        y=values,
+        marker_color=colors,
+        marker_line_color='black',
+        marker_line_width=1,
+        text=values,
+        textposition='auto',
+    ))
     
-    return df
+    fig.update_layout(
+        title='Database Indexing Comparison',
+        xaxis_title='Database',
+        yaxis_title='Number of Publications',
+        showlegend=False
+    )
+    
+    fig = apply_scientific_style(fig)
+    return fig
 
-# ─── STREAMLIT UI ────────────────────────────────────────────────────
+def plot_quartile_distribution(df, database, plot_palette: Dict):
+    """Plot quartile distribution for WoS or Scopus"""
+    belong = df[df['belongs_to_period'] == True].copy()
+    
+    if database == 'WoS':
+        quartiles = belong[belong['wos_indexed']]['IF_Q'].dropna()
+        title = 'WoS Quartile Distribution'
+        color_idx = 0
+    else:
+        quartiles = belong[belong['scopus_indexed']]['CS_Q'].dropna()
+        title = 'Scopus Quartile Distribution'
+        color_idx = 1
+    
+    if quartiles.empty:
+        return None
+    
+    quartile_counts = quartiles.value_counts()
+    # Ensure all Q1-Q4 are present
+    for q in ['Q1', 'Q2', 'Q3', 'Q4']:
+        if q not in quartile_counts.index:
+            quartile_counts[q] = 0
+    
+    # Sort in order Q1, Q2, Q3, Q4
+    quartile_counts = quartile_counts.sort_index()
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=quartile_counts.index,
+        y=quartile_counts.values,
+        marker_color=plot_palette['categorical'][color_idx],
+        marker_line_color='black',
+        marker_line_width=1,
+        text=quartile_counts.values,
+        textposition='auto',
+    ))
+    
+    fig.update_layout(
+        title=title,
+        xaxis_title='Quartile',
+        yaxis_title='Number of Papers'
+    )
+    
+    fig = apply_scientific_style(fig)
+    return fig
 
 # Sidebar
 with st.sidebar:
@@ -1896,20 +2628,95 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-    # Информация о статусе
-    st.markdown("---")
-    st.markdown("### 📊 Status")
+    # Step indicator
+    st.markdown("### 📊 Progress")
     
+    steps = ["Search", "Period", "Results"]
+    current_step = st.session_state['step'] - 1
+    
+    step_html = '<div style="margin: 1rem 0;">'
+    for i, step_name in enumerate(steps):
+        if i < current_step:
+            status = "✅"
+        elif i == current_step:
+            status = "▶️"
+        else:
+            status = "⏳"
+        step_html += f'<div style="margin: 0.5rem 0;">{status} Step {i+1}: {step_name}</div>'
+    step_html += '</div>'
+    
+    st.markdown(step_html, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Current selection info
     if st.session_state.selected_ror:
-        st.success(f"✅ Organization selected: `{st.session_state.selected_ror}`")
-    else:
-        st.warning("⏳ No organization selected")
+        st.markdown("### 🏛 Current Selection")
+        st.info(f"""
+        **Organization:** {st.session_state.selected_org_name or 'Unknown'}
+        **ROR:** `{st.session_state.selected_ror}`
+        **Country:** {st.session_state.selected_org_country or 'N/A'}
+        """)
     
-    if st.session_state.analysis_complete:
-        st.success(f"✅ Analysis complete: {len(st.session_state.results_df) if st.session_state.results_df is not None else 0} papers")
+    if st.session_state.orig_years_list:
+        st.markdown(f"**Period:** {', '.join(map(str, st.session_state.orig_years_list))}")
     
-    # Информация о кэше
     st.markdown("---")
+    
+    # Recent institutions
+    if st.session_state['recent_institutions']:
+        st.markdown("### 🕒 Recent Institutions")
+        for inst in st.session_state['recent_institutions']:
+            if st.button(
+                f"🏛️ {inst['name'][:30]}...",
+                key=f"recent_{inst['ror']}",
+                help=f"ROR: {inst['ror']}",
+                use_container_width=True
+            ):
+                st.session_state.selected_ror = inst['ror']
+                st.session_state.selected_org_name = inst['name']
+                st.session_state.selected_org_country = inst.get('country', '')
+                st.session_state.step = 2
+                st.rerun()
+        
+        st.markdown("---")
+    
+    # Database status
+    st.markdown("### 📚 Database Status")
+    
+    if st.session_state.if_df is not None:
+        st.success("✅ WoS (IF.xlsx) loaded")
+    else:
+        st.warning("⚠️ WoS (IF.xlsx) not found")
+    
+    if st.session_state.cs_df is not None:
+        st.success("✅ Scopus (CS.xlsx) loaded")
+    else:
+        st.warning("⚠️ Scopus (CS.xlsx) not found")
+    
+    st.markdown("---")
+    
+    # Plot color palette selector
+    st.markdown("### 🎨 Plot Colors")
+    palette_names = [p['name'] for p in PLOT_COLOR_PALETTES]
+    selected_palette_idx = palette_names.index(st.session_state['plot_palette']['name']) if st.session_state['plot_palette']['name'] in palette_names else 0
+    
+    selected_palette_name = st.selectbox(
+        "Color scheme for plots",
+        options=palette_names,
+        index=selected_palette_idx,
+        key="plot_palette_selector"
+    )
+    
+    # Update selected palette
+    for p in PLOT_COLOR_PALETTES:
+        if p['name'] == selected_palette_name:
+            st.session_state['plot_palette'] = p
+            break
+    
+    st.markdown("---")
+    
+    # Cache info
     st.markdown("### 💾 Cache Info")
     cache_size = len([f for f in os.listdir(CACHE_DIR) if f.endswith('.pkl')]) if os.path.exists(CACHE_DIR) else 0
     st.info(f"📁 Cached items: {cache_size}")
@@ -1919,610 +2726,844 @@ with st.sidebar:
         st.success("Cache cleared!")
         st.rerun()
     
-    # Информация о IF/CS файлах
     st.markdown("---")
-    st.markdown("### 📚 Journal Metrics")
-    if os.path.exists("IF.xlsx"):
-        st.success("✅ IF.xlsx loaded")
-    else:
-        st.warning("⚠️ IF.xlsx not found")
     
-    if os.path.exists("CS.xlsx"):
-        st.success("✅ CS.xlsx loaded")
-    else:
-        st.warning("⚠️ CS.xlsx not found")
-    
-    # Кнопка сброса
-    st.markdown("---")
+    # Reset button
     if st.button("🔄 Reset Application", use_container_width=True):
+        palette = st.session_state.color_palette
+        plot_palette = st.session_state['plot_palette']
+        recent = st.session_state['recent_institutions']
         for key in list(st.session_state.keys()):
-            if key != 'color_palette':  # Сохраняем цветовую палитру
+            if key not in ['color_palette', 'plot_palette', 'recent_institutions']:
                 del st.session_state[key]
+        st.session_state.color_palette = palette
+        st.session_state['plot_palette'] = plot_palette
+        st.session_state['recent_institutions'] = recent
+        st.session_state.step = 1
         st.rerun()
 
-# Main content area with tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🔍 Search & Analysis", 
-    "📊 Results", 
-    "📈 Visualizations", 
-    "🌐 Networks",
-    "📥 Export"
-])
-
-# Tab 1: Search & Analysis
-with tab1:
+# Main content area - Step 1: Organization Search
+if st.session_state.step == 1:
+    st.markdown("## 🔍 Step 1: Organization Search")
+    
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.markdown("### 🏛 Organization Input")
-        org_input = st.text_input(
-            "Enter ROR or organization name",
-            placeholder="e.g., 05wv0v765 or Ural Federal University",
-            key="org_input"
-        )
+        st.markdown("""
+        <div class="info-box">
+        Enter an organization name or ROR ID to analyze its publications.
         
-        st.markdown("### 📅 Period Input")
-        years_input = st.text_input(
-            "Enter years",
-            placeholder="e.g., 2023, 2022-2024, or 2021,2023-2025",
-            key="years_input"
+        **Examples:**
+        - ROR ID: `05wv0v765`
+        - URL: `https://ror.org/05wv0v765`
+        - Name: `Ural Federal University`
+        - Name with hyphen: `Institute of High-Temperature Electrochemistry`
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Use value from session_state for display
+        query = st.text_input(
+            "Organization or ROR ID",
+            value=st.session_state['search_query'],
+            placeholder="Enter name or ROR ID...",
+            key="inst_query_input"
         )
+        # Update session_state on change
+        if query != st.session_state['search_query']:
+            st.session_state['search_query'] = query
+            # Reset results when query changes
+            st.session_state['search_performed'] = False
+            st.session_state.org_search_results = None
+        
+        col_search1, col_search2 = st.columns([1, 3])
+        with col_search1:
+            search_clicked = st.button("🔍 Search", type="primary", use_container_width=True)
+        
+        # Perform search only when Search button is clicked
+        if search_clicked and query:
+            with st.spinner("Searching for organization..."):
+                ror_id, error, org_name, org_country = select_organization(query)
+                
+                if ror_id:
+                    # Single result found
+                    st.session_state.selected_ror = ror_id
+                    st.session_state.selected_org_name = org_name
+                    st.session_state.selected_org_country = org_country
+                    
+                    add_to_recent_institutions({
+                        'ror': ror_id,
+                        'name': org_name,
+                        'country': org_country
+                    })
+                    
+                    st.session_state.step = 2
+                    st.rerun()
+                elif error and error != "Organization not found":
+                    # Multiple results
+                    st.session_state.org_search_results = error
+                    st.session_state.search_performed = True
+                else:
+                    # No results
+                    st.session_state.org_search_results = []
+                    st.session_state.search_performed = True
+                    st.markdown(f"""
+                    <div class="error-box">
+                        ❌ Organization not found. Try:
+                        - Using a more general name
+                        - Checking spelling
+                        - Using ROR ID
+                    </div>
+                    """, unsafe_allow_html=True)
+        
+        # Display search results
+        if st.session_state.search_performed and st.session_state.org_search_results is not None:
+            results = st.session_state.org_search_results
+            
+            if results and isinstance(results, list) and len(results) > 0:
+                st.markdown("### Found organizations:")
+                
+                # Initialize expanded details state if not exists
+                if 'expanded_details' not in st.session_state:
+                    st.session_state['expanded_details'] = {}
+                
+                for i, org in enumerate(results):
+                    # Create a unique key for this organization
+                    org_key = f"{org['ror']}_{i}"
+                    
+                    # Create a container for each organization
+                    org_container = st.container()
+                    
+                    with org_container:
+                        col_a, col_b, col_c = st.columns([3, 1, 1])
+                        
+                        with col_a:
+                            st.markdown(f"**{org['display_name']}**")
+                            st.markdown(f"ROR: {org['ror']} | Country: {org.get('country', 'N/A')} | Works: {org['works_count']:,}")
+                        
+                        with col_b:
+                            # Select button - sets organization and moves to step 2
+                            if st.button("Select", key=f"select_{org_key}", use_container_width=True):
+                                ror_id = org['ror'].replace('https://ror.org/', '') if org['ror'] else None
+                                st.session_state.selected_ror = ror_id
+                                st.session_state.selected_org_name = org['display_name']
+                                st.session_state.selected_org_country = org.get('country', '')
+                                
+                                add_to_recent_institutions({
+                                    'ror': ror_id,
+                                    'name': org['display_name'],
+                                    'country': org.get('country', '')
+                                })
+                                
+                                st.session_state.step = 2
+                                st.rerun()
+                        
+                        with col_c:
+                            # Details button - toggles details without rerun
+                            if st.button("Details", key=f"details_{org_key}", use_container_width=True):
+                                # Toggle details for this organization
+                                if org_key in st.session_state['expanded_details']:
+                                    st.session_state['expanded_details'][org_key] = not st.session_state['expanded_details'][org_key]
+                                else:
+                                    st.session_state['expanded_details'][org_key] = True
+                        
+                        # Show details if expanded
+                        if st.session_state['expanded_details'].get(org_key, False):
+                            st.markdown(f"""
+                            <div style="background-color: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px; margin: 0.5rem 0;">
+                                <h4>📋 Detailed Information</h4>
+                                <p><strong>Full Name:</strong> {org['display_name']}</p>
+                                <p><strong>ROR ID:</strong> {org['ror']}</p>
+                                <p><strong>OpenAlex ID:</strong> {org['id']}</p>
+                                <p><strong>Country:</strong> {org.get('country', 'N/A')}</p>
+                                <p><strong>Type:</strong> {org.get('type', 'N/A')}</p>
+                                <p><strong>Total Works:</strong> {org['works_count']:,}</p>
+                                <p><strong>Total Citations:</strong> {org['cited_by_count']:,}</p>
+                                <p><em>Click 'Select' to analyze this organization.</em></p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        st.markdown("---")
     
     with col2:
-        st.markdown("### ℹ️ Examples")
-        with st.expander("Organization Examples"):
-            st.markdown("""
-            - ROR ID: `05wv0v765`
-            - URL: `https://ror.org/05wv0v765`
-            - Name: `Ural Federal University`
-            - Name with hyphen: `Institute of High-Temperature Electrochemistry`
-            """)
+        st.markdown("### ℹ️ Search Tips")
+        st.markdown("""
+        **ROR ID format:**
+        - `05wv0v765`
+        - `https://ror.org/05wv0v765`
         
-        with st.expander("Year Examples"):
+        **Name search tips:**
+        - Use full official names
+        - Try without "University" or "Institute"
+        - Include country for better results
+        - Check spelling
+        
+        **Examples:**
+        - `Ural Federal University`
+        - `Institute of High-Temperature Electrochemistry`
+        - `Massachusetts Institute of Technology`
+        """)
+
+# Step 2: Period Selection
+elif st.session_state.step == 2:
+    st.markdown("## 📅 Step 2: Analysis Period")
+    
+    if not st.session_state.selected_ror:
+        st.warning("Please select an organization first.")
+        if st.button("← Back to Search", use_container_width=True):
+            st.session_state.step = 1
+            st.rerun()
+    else:
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.markdown(f"""
+            <div class="info-box">
+            <strong>Selected Organization:</strong> {st.session_state.selected_org_name}<br>
+            <strong>ROR:</strong> {st.session_state.selected_ror}<br>
+            <strong>Country:</strong> {st.session_state.selected_org_country or 'N/A'}
+            </div>
+            """, unsafe_allow_html=True)
+            
             st.markdown("""
+            **Select analysis period:**
+            
+            **Input formats:**
             - Single year: `2023`
             - Range: `2022-2024`
             - Mixed: `2021,2023-2025`
+            
+            *Note: Period limited to 30 years for performance. The system will search ±1 year around your selected period to ensure complete data collection.*
             """)
-    
-    # Search button
-    col1, col2, col3 = st.columns([1, 1, 2])
-    with col1:
-        search_clicked = st.button("🔍 Find Organization", use_container_width=True, type="primary")
-    
-    with col2:
-        analyze_clicked = st.button("📊 Run Analysis", use_container_width=True, type="secondary", 
-                                   disabled=st.session_state.selected_ror is None)
-    
-    # Handle search
-    if search_clicked and org_input:
-        with st.spinner("🔍 Searching for organization..."):
-            ror_id, error = select_organization(org_input)
             
-            if ror_id:
-                st.session_state.selected_ror = ror_id
-                st.success(f"✅ Using ROR: {ror_id}")
-                st.rerun()
-            elif error:
-                st.error(f"❌ {error}")
-            else:
-                st.session_state.org_search_results = error
-                st.info(f"Found {len(error)} organizations. Please select:")
-                
-                # Create selection dropdown
-                options = []
-                for i, org in enumerate(error, 1):
-                    ror_id = org['ror'].replace('https://ror.org/', '') if org['ror'] else 'N/A'
-                    label = f"{i}. {org['display_name']} | {org.get('country', 'N/A')} | Works: {org['works_count']:,}"
-                    options.append((label, org['ror']))
-                
-                selected_org = st.selectbox(
-                    "Select organization:",
-                    options=options,
-                    format_func=lambda x: x[0] if isinstance(x, tuple) else x,
-                    key="org_selector"
-                )
-                
-                if selected_org and st.button("✅ Confirm Selection", use_container_width=True):
-                    ror_id = selected_org[1].replace('https://ror.org/', '')
-                    st.session_state.selected_ror = ror_id
-                    st.success(f"✅ Selected organization with ROR: {ror_id}")
-                    st.rerun()
-    
-    # Handle analysis
-    if analyze_clicked and st.session_state.selected_ror and years_input:
-        with st.spinner("🚀 Starting comprehensive analysis..."):
-            # Parse years
-            orig_years_list = parse_year_input(years_input)
-            if not orig_years_list:
-                st.error("❌ Error: could not parse years")
-            else:
-                st.session_state.orig_years_list = orig_years_list
-                orig_years_set = set(orig_years_list)
-                st.session_state.exp_years = get_expanded_years(orig_years_list)
-                
-                # Display parameters
-                st.info(f"""
-                **Analysis Parameters:**
-                - 🏛 ROR ID: {st.session_state.selected_ror}
-                - 📅 Original period: {', '.join(map(str, orig_years_list))}
-                - 🔍 Search period: {', '.join(map(str, st.session_state.exp_years))}
-                """)
-                
-                # Collect DOIs
-                st.write("1. Collecting DOIs from OpenAlex...")
-                dois, err = fetch_all_dois_openalex(st.session_state.selected_ror, st.session_state.exp_years)
-                
-                if err:
-                    st.error(f"❌ Error: {err}")
-                elif not dois:
-                    st.warning("❌ No publications with DOI in expanded period")
-                else:
-                    st.success(f"✅ Unique DOIs collected: {len(dois):,}")
-                    st.session_state.dois_list = dois
-                    
-                    # Process DOIs
-                    st.write("2. Retrieving enhanced data from Crossref and OpenAlex...")
-                    st.write(f"   → Using {MAX_WORKERS} parallel threads")
-                    st.write(f"   → Max retries: {MAX_RETRIES}")
-                    
-                    start = time.time()
-                    results, errors = process_dois_parallel(dois, st.session_state.selected_ror)
-                    duration = time.time() - start
-                    
-                    st.session_state.errors_list = errors
-                    
-                    if results:
-                        df = create_results_dataframe(results, orig_years_set)
-                        st.session_state.results_df = df
-                        st.session_state.analysis_complete = True
-                        
-                        st.success(f"""
-                        ✅ Processing complete!
-                        - Successful: {len(results):,}
-                        - Errors: {len(errors):,}
-                        - Time: {duration:.1f} sec
-                        """)
-                        
-                        # Show summary
-                        belong = df[df['belongs_to_period'] == True].copy()
-                        not_belong = df[df['belongs_to_period'] == False].copy()
-                        
-                        st.metric("Papers in target period", f"{len(belong):,}", 
-                                 f"{len(belong)/len(results):.1%}")
-                        st.metric("Papers outside period", f"{len(not_belong):,}", 
-                                 f"{len(not_belong)/len(results):.1%}")
-                    else:
-                        st.error("❌ No successfully processed papers")
-
-# Tab 2: Results
-with tab2:
-    if st.session_state.analysis_complete and st.session_state.results_df is not None:
-        df = st.session_state.results_df
-        
-        # Filters
-        st.markdown("### 🔍 Filter Results")
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            show_only_period = st.checkbox("Show only papers in target period", value=True)
-        
-        with col2:
-            if 'journal' in df.columns:
-                journals = ['All'] + sorted(df['journal'].dropna().unique().tolist())
-                selected_journal = st.selectbox("Filter by journal", journals)
-        
-        with col3:
-            if 'type' in df.columns:
-                types = ['All'] + sorted(df['type'].dropna().unique().tolist())
-                selected_type = st.selectbox("Filter by type", types)
-        
-        # Apply filters
-        filtered_df = df.copy()
-        if show_only_period:
-            filtered_df = filtered_df[filtered_df['belongs_to_period'] == True]
-        
-        if selected_journal != 'All':
-            filtered_df = filtered_df[filtered_df['journal'] == selected_journal]
-        
-        if selected_type != 'All':
-            filtered_df = filtered_df[filtered_df['type'] == selected_type]
-        
-        # Display statistics
-        st.markdown("### 📊 Summary Statistics")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("Total Papers", len(filtered_df))
-        
-        with col2:
-            if 'authors_count' in filtered_df.columns:
-                st.metric("Avg Authors", f"{filtered_df['authors_count'].mean():.1f}")
-        
-        with col3:
-            if 'citations_cr' in filtered_df.columns:
-                st.metric("Avg Citations (CR)", f"{filtered_df['citations_cr'].mean():.1f}")
-        
-        with col4:
-            if 'citations_oa' in filtered_df.columns:
-                st.metric("Avg Citations (OA)", f"{filtered_df['citations_oa'].mean():.1f}")
-        
-        # Display dataframe
-        st.markdown("### 📋 Publications")
-        
-        # Select columns to display
-        display_cols = ['title', 'authors', 'journal', 'late_year', 'citations_cr', 'citations_oa']
-        display_cols = [col for col in display_cols if col in filtered_df.columns]
-        
-        # Add IF/CS columns if they exist
-        if 'IF' in filtered_df.columns:
-            display_cols.extend(['IF', 'IF_Q'])
-        if 'CS' in filtered_df.columns:
-            display_cols.extend(['CS', 'CS_Q'])
-        
-        st.dataframe(
-            filtered_df[display_cols].head(100),
-            use_container_width=True,
-            height=400
-        )
-        
-        st.caption(f"Showing first 100 of {len(filtered_df)} records")
-        
-    else:
-        st.info("👈 Please run an analysis first in the Search & Analysis tab")
-
-# Tab 3: Visualizations
-with tab3:
-    if st.session_state.analysis_complete and st.session_state.results_df is not None:
-        st.markdown("### 📈 Scientific Visualizations")
-        
-        with st.spinner("Creating visualizations..."):
-            figs = create_enhanced_visualizations(st.session_state.results_df)
+            def on_year_input_change():
+                st.session_state['year_input_text'] = st.session_state['year_input_widget']
             
-            if figs:
-                # Create rows of visualizations
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    if 'timeline' in figs:
-                        st.pyplot(figs['timeline'])
-                        st.caption("Figure 1: Publication timeline showing distribution over years")
-                
-                with col2:
-                    if 'journals' in figs:
-                        st.pyplot(figs['journals'])
-                        st.caption("Figure 2: Top 10 journals by number of publications")
-                
-                col3, col4 = st.columns(2)
-                
-                with col3:
-                    if 'citations' in figs:
-                        st.pyplot(figs['citations'])
-                        st.caption("Figure 3: Citation distribution comparison")
-                
-                with col4:
-                    if 'oa_trend' in figs:
-                        st.pyplot(figs['oa_trend'])
-                        st.caption("Figure 4: Open Access trend over time")
-                
-                if 'countries' in figs:
-                    st.pyplot(figs['countries'])
-                    st.caption("Figure 5: Country collaboration heatmap")
-            else:
-                st.warning("No data available for visualization")
-    else:
-        st.info("👈 Please run an analysis first in the Search & Analysis tab")
-
-# Tab 4: Networks
-with tab4:
-    if st.session_state.analysis_complete and st.session_state.results_df is not None:
-        st.markdown("### 🌐 Network Analysis")
-        
-        df = st.session_state.results_df
-        belong = df[df['belongs_to_period'] == True].copy()
-        
-        if not belong.empty:
-            # Network type selector
-            network_type = st.radio(
-                "Select network type:",
-                ["Country Collaboration", "Affiliation Collaboration"],
-                horizontal=True
+            year_input = st.text_input(
+                "Analysis Period",
+                value=st.session_state['year_input_text'],
+                placeholder="e.g., 2020-2024 or 2023,2025-2026",
+                key="year_input_widget",
+                on_change=on_year_input_change
             )
             
-            if network_type == "Country Collaboration":
-                G, stats = create_country_network(df)
+            col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
+            
+            with col_btn1:
+                if st.button("← Back", use_container_width=True):
+                    st.session_state.step = 1
+                    st.rerun()
+            
+            with col_btn2:
+                if st.button("Check Availability", type="secondary", use_container_width=True):
+                    if year_input:
+                        years = parse_year_input(year_input)
+                        if years:
+                            is_valid, message = validate_year_range(years)
+                            if not is_valid:
+                                st.markdown(f"""
+                                <div class="error-box">
+                                    ❌ {message}
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                with st.spinner("Checking data availability..."):
+                                    total = get_total_papers_count(st.session_state.selected_ror, years)
+                                    
+                                    st.session_state.orig_years_list = years
+                                    st.session_state.total_papers_estimate = total
+                                    
+                                    if total > 0:
+                                        expanded = get_expanded_years(years)
+                                        st.session_state.exp_years = expanded
+                                        
+                                        if total > WARN_PAPERS_THRESHOLD:
+                                            st.markdown(f"""
+                                            <div class="warning-box">
+                                                <strong>⚠️ Large Dataset Warning</strong><br>
+                                                Found {total:,} papers. Analysis will be limited to {MAX_PAPERS_TO_ANALYZE:,} papers for performance.
+                                                This may take several minutes.
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                        else:
+                                            st.markdown(f"""
+                                            <div class="success-box">
+                                                <strong>✅ Data found</strong><br>
+                                                Total papers: {total:,}<br>
+                                                Search period: {min(expanded)}-{max(expanded)}
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                    else:
+                                        st.markdown(f"""
+                                        <div class="warning-box">
+                                            ⚠️ No publications found for this period
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                        else:
+                            st.markdown("""
+                            <div class="error-box">
+                                ❌ Invalid period format
+                            </div>
+                            """, unsafe_allow_html=True)
+            
+            with col_btn3:
+                if st.session_state.total_papers_estimate > 0:
+                    if st.button("▶️ Start Analysis", type="primary", use_container_width=True):
+                        with st.spinner("Starting analysis..."):
+                            progress_container = st.empty()
+                            status_container = st.empty()
+                            
+                            success = run_analysis_with_progress(
+                                st.session_state.selected_ror,
+                                st.session_state.orig_years_list,
+                                st.session_state.total_papers_estimate,
+                                progress_container,
+                                status_container
+                            )
+                            
+                            if success:
+                                st.session_state.step = 3
+                                st.rerun()
+        
+        with col2:
+            st.markdown("### ℹ️ Period Tips")
+            st.markdown("""
+            **Why search ±1 year?**
+            
+            OpenAlex uses publication year from metadata, which may differ from the actual publication date. Searching ±1 year ensures we capture all relevant papers.
+            
+            **After collection:**
+            
+            Papers are validated against Crossref data and filtered to exactly match your selected years.
+            
+            **Examples:**
+            - `2023` → searches 2022-2024, filters to 2023
+            - `2020-2022` → searches 2019-2023, filters to 2020-2022
+            """)
+
+# Step 3: Results
+elif st.session_state.step == 3 and st.session_state.analysis_complete:
+    st.markdown("## 📊 Step 3: Analysis Results")
+    
+    # Navigation buttons
+    col1, col2, col3 = st.columns([1, 1, 4])
+    with col1:
+        if st.button("← Back to Period", use_container_width=True):
+            st.session_state.step = 2
+            st.rerun()
+    with col2:
+        if st.button("🔄 New Search", use_container_width=True):
+            palette = st.session_state.color_palette
+            plot_palette = st.session_state['plot_palette']
+            recent = st.session_state['recent_institutions']
+            for key in list(st.session_state.keys()):
+                if key not in ['color_palette', 'plot_palette', 'recent_institutions']:
+                    del st.session_state[key]
+            st.session_state.color_palette = palette
+            st.session_state['plot_palette'] = plot_palette
+            st.session_state['recent_institutions'] = recent
+            st.session_state.step = 1
+            st.rerun()
+    
+    df = st.session_state.results_df
+    validation = st.session_state.validation_stats
+    belong = df[df['belongs_to_period'] == True].copy()
+    
+    # Summary metrics
+    st.markdown("### 📈 Summary Statistics")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        st.metric("Total Papers", len(belong))
+    
+    with col2:
+        if 'citations_oa' in belong.columns:
+            total_citations = belong['citations_oa'].sum()
+            st.metric("Total Citations", f"{total_citations:,}")
+    
+    with col3:
+        if 'citations_oa' in belong.columns:
+            avg_citations = belong['citations_oa'].mean()
+            st.metric("Avg Citations", f"{avg_citations:.1f}")
+    
+    with col4:
+        wos_count = belong['wos_indexed'].sum() if 'wos_indexed' in belong.columns else 0
+        st.metric("WoS Indexed", f"{wos_count:,}")
+    
+    with col5:
+        scopus_count = belong['scopus_indexed'].sum() if 'scopus_indexed' in belong.columns else 0
+        st.metric("Scopus Indexed", f"{scopus_count:,}")
+    
+    # Database filtering
+    st.markdown("### 🔍 Filter by Database")
+    filter_option = st.radio(
+        "Show papers:",
+        ["All Papers", "WoS Only", "Scopus Only", "Both Databases", "Neither"],
+        horizontal=True,
+        key="database_filter"
+    )
+    
+    # Apply filter
+    filtered_df = belong.copy()
+    if filter_option == "WoS Only":
+        filtered_df = filtered_df[filtered_df['wos_indexed'] == True]
+    elif filter_option == "Scopus Only":
+        filtered_df = filtered_df[filtered_df['scopus_indexed'] == True]
+    elif filter_option == "Both Databases":
+        filtered_df = filtered_df[(filtered_df['wos_indexed'] == True) & (filtered_df['scopus_indexed'] == True)]
+    elif filter_option == "Neither":
+        filtered_df = filtered_df[(filtered_df['wos_indexed'] == False) & (filtered_df['scopus_indexed'] == False)]
+    
+    st.info(f"Showing {len(filtered_df)} papers ({len(filtered_df)/len(belong)*100:.1f}% of total)")
+    
+    # Validation stats
+    with st.expander("📊 Validation Statistics"):
+        st.markdown(f"""
+        <div class="info-box">
+        <strong>Date Validation (Crossref):</strong><br>
+        - Total papers with DOI: {validation['with_doi']:,}<br>
+        - Successfully validated: {validation['validated']:,} ({validation['validated']/validation['with_doi']*100:.1f}%)<br>
+        - Kept in period: {validation['kept']:,}<br>
+        - Rejected (year mismatch): {validation['rejected']:,}<br>
+        - Not found in Crossref: {validation['not_found']:,}
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Tabs for different views
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "📈 Overview", "📚 Journals", "👥 Authors", "🌍 Collaborations", "📊 Citations", "🔬 Database Analysis"
+    ])
+    
+    with tab1:
+        st.markdown("### Publications Timeline")
+        
+        col_plot1, col_plot2 = st.columns(2)
+        
+        with col_plot1:
+            # Yearly publications
+            year_counts = filtered_df['late_year'].value_counts().sort_index()
+            fig_yearly = plot_yearly_publications(year_counts.to_dict(), st.session_state['plot_palette'])
+            st.plotly_chart(fig_yearly, use_container_width=True)
+        
+        with col_plot2:
+            # Database comparison
+            fig_db = plot_database_comparison(filtered_df, st.session_state['plot_palette'])
+            if fig_db:
+                st.plotly_chart(fig_db, use_container_width=True)
+        
+        # Matplotlib visualizations
+        figs = create_enhanced_visualizations(filtered_df)
+        if figs:
+            if 'timeline' in figs:
+                st.pyplot(figs['timeline'])
+            if 'indexing' in figs:
+                st.pyplot(figs['indexing'])
+    
+    with tab2:
+        st.markdown("### Journal Analysis")
+        
+        col_j1, col_j2 = st.columns(2)
+        
+        with col_j1:
+            # Top journals
+            journal_freq = filtered_df['journal'].value_counts().head(20)
+            fig_journals = go.Figure()
+            fig_journals.add_trace(go.Bar(
+                y=journal_freq.index[::-1],
+                x=journal_freq.values[::-1],
+                orientation='h',
+                marker_color=st.session_state['plot_palette']['categorical'][1],
+                marker_line_color='black',
+                marker_line_width=1
+            ))
+            fig_journals.update_layout(
+                title='Top 20 Journals',
+                xaxis_title='Number of Publications',
+                yaxis_title='Journal',
+                height=500
+            )
+            fig_journals = apply_scientific_style(fig_journals)
+            st.plotly_chart(fig_journals, use_container_width=True)
+        
+        with col_j2:
+            # Top publishers
+            publisher_freq = filtered_df['publisher'].value_counts().head(15)
+            fig_publishers = go.Figure()
+            fig_publishers.add_trace(go.Pie(
+                labels=publisher_freq.index,
+                values=publisher_freq.values,
+                marker_colors=st.session_state['plot_palette']['categorical'],
+                textinfo='percent+label',
+                insidetextorientation='radial'
+            ))
+            fig_publishers.update_layout(
+                title='Top 15 Publishers',
+                height=500
+            )
+            fig_publishers = apply_scientific_style(fig_publishers)
+            st.plotly_chart(fig_publishers, use_container_width=True)
+        
+        # Journal table
+        with st.expander("View Journal Frequency Table"):
+            journal_df = pd.DataFrame({
+                'Journal': journal_freq.index,
+                'Publications': journal_freq.values,
+                'Percentage': (journal_freq.values / len(filtered_df) * 100).round(1)
+            })
+            st.dataframe(journal_df, use_container_width=True)
+    
+    with tab3:
+        st.markdown("### Author Analysis")
+        
+        author_counter = generate_author_frequency(filtered_df)
+        top_authors = author_counter.most_common(30)
+        
+        if top_authors:
+            fig_authors = go.Figure()
+            authors_display = [a[0][:30] + '...' if len(a[0]) > 30 else a[0] for a in top_authors[:20]]
+            counts = [a[1] for a in top_authors[:20]]
+            
+            fig_authors.add_trace(go.Bar(
+                y=authors_display[::-1],
+                x=counts[::-1],
+                orientation='h',
+                marker_color=st.session_state['plot_palette']['categorical'][2],
+                marker_line_color='black',
+                marker_line_width=1
+            ))
+            fig_authors.update_layout(
+                title='Top 20 Authors',
+                xaxis_title='Number of Publications',
+                yaxis_title='Author',
+                height=600
+            )
+            fig_authors = apply_scientific_style(fig_authors)
+            st.plotly_chart(fig_authors, use_container_width=True)
+            
+            # Author table
+            with st.expander("View Author Frequency Table"):
+                author_df = pd.DataFrame(top_authors, columns=['Author', 'Publications'])
+                st.dataframe(author_df, use_container_width=True)
+        else:
+            st.info("No author data available")
+    
+    with tab4:
+        st.markdown("### Collaboration Analysis")
+        
+        col_c1, col_c2 = st.columns(2)
+        
+        with col_c1:
+            # Countries
+            country_counter = generate_country_frequency(filtered_df)
+            if country_counter:
+                fig_countries = go.Figure()
+                countries_display = [c for c, _ in country_counter.most_common(15)]
+                country_counts = [v for _, v in country_counter.most_common(15)]
                 
-                if len(G.nodes()) > 0:
-                    st.markdown("#### Country Collaboration Network")
+                fig_countries.add_trace(go.Bar(
+                    x=countries_display,
+                    y=country_counts,
+                    marker_color=st.session_state['plot_palette']['categorical'][0],
+                    marker_line_color='black',
+                    marker_line_width=1
+                ))
+                fig_countries.update_layout(
+                    title='Top 15 Countries',
+                    xaxis_title='Country',
+                    yaxis_title='Number of Publications',
+                    xaxis_tickangle=45
+                )
+                fig_countries = apply_scientific_style(fig_countries)
+                st.plotly_chart(fig_countries, use_container_width=True)
+        
+        with col_c2:
+            # Collaboration types
+            if 'countries' in filtered_df.columns:
+                def get_collab_type(row):
+                    countries = extract_countries(row.get('countries', ''))
+                    if len(countries) <= 1:
+                        return 'Domestic'
+                    else:
+                        return 'International'
+                
+                collab_types = filtered_df.apply(get_collab_type, axis=1).value_counts()
+                
+                fig_collab = go.Figure()
+                fig_collab.add_trace(go.Pie(
+                    labels=collab_types.index,
+                    values=collab_types.values,
+                    marker_colors=st.session_state['plot_palette']['categorical'],
+                    textinfo='percent+label'
+                ))
+                fig_collab.update_layout(
+                    title='Collaboration Types',
+                    height=400
+                )
+                fig_collab = apply_scientific_style(fig_collab)
+                st.plotly_chart(fig_collab, use_container_width=True)
+        
+        # Country network (if data available)
+        if len(country_counter) > 1:
+            with st.expander("View Country Collaboration Network"):
+                G_country, _ = create_country_network(filtered_df)
+                
+                if len(G_country.nodes()) > 0:
+                    # Create network visualization
+                    pos = nx.spring_layout(G_country, k=2, iterations=50)
                     
-                    # Network statistics
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Countries", len(G.nodes()))
-                    with col2:
-                        st.metric("Collaborations", len(G.edges()))
-                    with col3:
-                        st.metric("Avg Partners", f"{sum(dict(G.degree()).values())/len(G.nodes()):.2f}")
-                    
-                    # Create interactive plot
-                    pos = nx.spring_layout(G, k=2, iterations=50)
-                    
-                    # Create edge trace
                     edge_trace = []
-                    for edge in G.edges():
+                    for edge in G_country.edges():
                         x0, y0 = pos[edge[0]]
                         x1, y1 = pos[edge[1]]
                         edge_trace.append(go.Scatter(
                             x=[x0, x1, None], y=[y0, y1, None],
-                            line=dict(width=G[edge[0]][edge[1]]['weight'], color='#888'),
+                            line=dict(width=G_country[edge[0]][edge[1]]['weight'], color='#888'),
                             hoverinfo='none',
                             mode='lines'
                         ))
                     
-                    # Create node trace
                     node_x = []
                     node_y = []
                     node_text = []
                     node_size = []
                     
-                    for node in G.nodes():
+                    for node in G_country.nodes():
                         x, y = pos[node]
                         node_x.append(x)
                         node_y.append(y)
-                        node_text.append(f"{node}<br>Papers: {G.nodes[node]['papers']}<br>Partners: {G.degree(node)}")
-                        node_size.append(G.nodes[node]['papers'] * 3)
+                        node_text.append(f"{node}<br>Papers: {G_country.nodes[node]['papers']}<br>Partners: {G_country.degree(node)}")
+                        node_size.append(G_country.nodes[node]['papers'] * 3)
                     
                     node_trace = go.Scatter(
                         x=node_x, y=node_y,
                         mode='markers+text',
-                        text=list(G.nodes()),
+                        text=list(G_country.nodes()),
                         textposition="top center",
                         hovertext=node_text,
                         hoverinfo='text',
                         marker=dict(
                             size=node_size,
-                            color=st.session_state.color_palette['primary'],
+                            color=st.session_state['plot_palette']['categorical'][0],
                             line=dict(color='darkblue', width=2)
                         )
                     )
                     
-                    fig = go.Figure(data=edge_trace + [node_trace],
-                                   layout=go.Layout(
-                                       title='Country Collaboration Network',
-                                       showlegend=False,
-                                       hovermode='closest',
-                                       xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                                       yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                                       height=600
-                                   ))
+                    fig_network = go.Figure(data=edge_trace + [node_trace],
+                                           layout=go.Layout(
+                                               title='Country Collaboration Network',
+                                               showlegend=False,
+                                               hovermode='closest',
+                                               xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                               yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                               height=500
+                                           ))
                     
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Show top collaborations
-                    st.markdown("#### Top Collaborations")
-                    edges_data = []
-                    for edge in G.edges():
-                        edges_data.append({
-                            'Country 1': edge[0],
-                            'Country 2': edge[1],
-                            'Collaborations': G[edge[0]][edge[1]]['weight']
-                        })
-                    
-                    edges_df = pd.DataFrame(edges_data)
-                    edges_df = edges_df.sort_values('Collaborations', ascending=False).head(10)
-                    st.dataframe(edges_df, use_container_width=True)
+                    fig_network = apply_scientific_style(fig_network)
+                    st.plotly_chart(fig_network, use_container_width=True)
+    
+    with tab5:
+        st.markdown("### Citation Analysis")
+        
+        col_cit1, col_cit2 = st.columns(2)
+        
+        with col_cit1:
+            # Citation distribution
+            citations = filtered_df['citations_oa'].dropna()
+            if not citations.empty:
+                bins = [0, 1, 5, 10, 20, 50, 100, float('inf')]
+                labels = ['0', '1-4', '5-9', '10-19', '20-49', '50-99', '100+']
+                citation_bins = pd.cut(citations, bins=bins, labels=labels, right=False)
+                dist = citation_bins.value_counts().sort_index()
                 
-                else:
-                    st.warning("No country collaboration data available")
-            
-            else:  # Affiliation Collaboration
-                G, stats = create_affiliation_network(df)
-                
-                if len(G.nodes()) > 0:
-                    st.markdown("#### Affiliation Collaboration Network")
-                    
-                    # Network statistics
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Affiliations", len(G.nodes()))
-                    with col2:
-                        st.metric("Collaborations", len(G.edges()))
-                    with col3:
-                        st.metric("Avg Partners", f"{sum(dict(G.degree()).values())/len(G.nodes()):.2f}")
-                    
-                    # Filter to top nodes for better visualization
-                    node_degrees = dict(G.degree())
-                    top_nodes = sorted(node_degrees, key=node_degrees.get, reverse=True)[:20]
-                    G_sub = G.subgraph(top_nodes)
-                    
-                    if len(G_sub.nodes()) > 0:
-                        pos = nx.spring_layout(G_sub, k=3, iterations=50)
-                        
-                        # Create edge trace
-                        edge_trace = []
-                        for edge in G_sub.edges():
-                            x0, y0 = pos[edge[0]]
-                            x1, y1 = pos[edge[1]]
-                            edge_trace.append(go.Scatter(
-                                x=[x0, x1, None], y=[y0, y1, None],
-                                line=dict(width=G_sub[edge[0]][edge[1]]['weight'], color='#888'),
-                                hoverinfo='none',
-                                mode='lines'
-                            ))
-                        
-                        # Create node trace
-                        node_x = []
-                        node_y = []
-                        node_text = []
-                        node_size = []
-                        
-                        for node in G_sub.nodes():
-                            x, y = pos[node]
-                            node_x.append(x)
-                            node_y.append(y)
-                            node_text.append(f"{node[:50]}...<br>Papers: {G_sub.nodes[node]['papers']}<br>Partners: {G_sub.degree(node)}")
-                            node_size.append(G_sub.nodes[node]['papers'] * 2)
-                        
-                        node_trace = go.Scatter(
-                            x=node_x, y=node_y,
-                            mode='markers+text',
-                            text=[n[:20] + '...' if len(n) > 20 else n for n in G_sub.nodes()],
-                            textposition="top center",
-                            hovertext=node_text,
-                            hoverinfo='text',
-                            marker=dict(
-                                size=node_size,
-                                color=st.session_state.color_palette['secondary'],
-                                line=dict(color='darkgreen', width=2)
-                            )
-                        )
-                        
-                        fig = go.Figure(data=edge_trace + [node_trace],
-                                       layout=go.Layout(
-                                           title='Top 20 Affiliations Collaboration Network',
-                                           showlegend=False,
-                                           hovermode='closest',
-                                           xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                                           yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                                           height=600
-                                       ))
-                        
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        # Show top affiliations
-                        st.markdown("#### Top Affiliations")
-                        nodes_data = []
-                        for node in G.nodes(data=True):
-                            nodes_data.append({
-                                'Affiliation': node[0],
-                                'Papers': node[1].get('papers', 0),
-                                'Countries': node[1].get('countries', ''),
-                                'Collaboration Partners': G.degree(node[0])
-                            })
-                        
-                        nodes_df = pd.DataFrame(nodes_data)
-                        nodes_df = nodes_df.sort_values('Papers', ascending=False).head(20)
-                        st.dataframe(nodes_df, use_container_width=True)
-                    
-                    else:
-                        st.warning("Not enough affiliation data for visualization")
-                else:
-                    st.warning("No affiliation collaboration data available")
-        else:
-            st.warning("No papers in target period for network analysis")
-    else:
-        st.info("👈 Please run an analysis first in the Search & Analysis tab")
-
-# Tab 5: Export
-with tab5:
-    if st.session_state.analysis_complete and st.session_state.results_df is not None:
-        st.markdown("### 📥 Export Data")
-        
-        df = st.session_state.results_df
-        
-        # Export options
-        st.markdown("#### Export Format")
-        export_format = st.radio(
-            "Select export format:",
-            ["Excel (Full Report)", "CSV (Main Data Only)", "JSON (Complete)"],
-            horizontal=True
-        )
-        
-        if export_format == "Excel (Full Report)":
-            st.markdown("#### Excel Export Options")
-            st.info("""
-            The Excel export includes multiple sheets:
-            - Main Data: Complete publication data
-            - Period Statistics: Summary statistics
-            - Top Authors: Author frequency
-            - Journal Frequency: Journal rankings
-            - Publisher Frequency: Publisher rankings
-            - Country Frequency: Country statistics
-            - Citation Statistics: Detailed citation metrics
-            - Year Distribution: Publication timeline
-            - OA Statistics: Open Access metrics
-            - Affiliation Network: Collaboration statistics
-            - Country Network: International collaboration
-            - Errors: Failed DOIs
-            - Metadata: Analysis parameters
-            """)
-            
-            if st.button("📊 Generate Excel Report", use_container_width=True, type="primary"):
-                with st.spinner("Generating Excel report..."):
-                    filename = export_to_excel(
-                        df, 
-                        df.to_dict('records'), 
-                        st.session_state.errors_list,
-                        st.session_state.selected_ror,
-                        st.session_state.orig_years_list,
-                        st.session_state.exp_years
-                    )
-                    
-                    if os.path.exists(filename):
-                        with open(filename, 'rb') as f:
-                            st.download_button(
-                                label="📥 Download Excel File",
-                                data=f,
-                                file_name=filename,
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                use_container_width=True
-                            )
-                    else:
-                        st.error("Failed to generate Excel file")
-        
-        elif export_format == "CSV (Main Data Only)":
-            st.markdown("#### CSV Export")
-            
-            # Select columns for CSV
-            available_cols = df.columns.tolist()
-            selected_cols = st.multiselect(
-                "Select columns to export:",
-                available_cols,
-                default=['doi', 'title', 'authors', 'journal', 'late_year', 'citations_cr', 'citations_oa']
-            )
-            
-            if selected_cols:
-                csv_data = df[selected_cols].to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv_data,
-                    file_name=f"analysis_{st.session_state.selected_ror}.csv",
-                    mime="text/csv",
-                    use_container_width=True
+                fig_dist = go.Figure()
+                fig_dist.add_trace(go.Bar(
+                    x=dist.index,
+                    y=dist.values,
+                    marker_color=st.session_state['plot_palette']['categorical'][0],
+                    marker_line_color='black',
+                    marker_line_width=1
+                ))
+                fig_dist.update_layout(
+                    title='Citation Distribution',
+                    xaxis_title='Citation Range',
+                    yaxis_title='Number of Papers'
                 )
+                fig_dist = apply_scientific_style(fig_dist)
+                st.plotly_chart(fig_dist, use_container_width=True)
         
-        else:  # JSON
-            st.markdown("#### JSON Export")
+        with col_cit2:
+            # Most cited papers
+            top_cited = filtered_df.nlargest(10, 'citations_oa')[['title', 'citations_oa', 'late_year', 'journal']]
+            if not top_cited.empty:
+                fig_top = go.Figure()
+                fig_top.add_trace(go.Bar(
+                    y=[t[:50] + '...' if len(t) > 50 else t for t in top_cited['title']],
+                    x=top_cited['citations_oa'],
+                    orientation='h',
+                    marker_color=st.session_state['plot_palette']['categorical'][1],
+                    marker_line_color='black',
+                    marker_line_width=1
+                ))
+                fig_top.update_layout(
+                    title='Top 10 Most Cited Papers',
+                    xaxis_title='Citations',
+                    yaxis_title='Paper Title',
+                    height=400
+                )
+                fig_top = apply_scientific_style(fig_top)
+                st.plotly_chart(fig_top, use_container_width=True)
+        
+        # Citations over time
+        if 'late_year' in filtered_df.columns and 'citations_oa' in filtered_df.columns:
+            citations_by_year = filtered_df.groupby('late_year')['citations_oa'].agg(['sum', 'mean', 'count']).reset_index()
             
-            # Prepare JSON data
-            json_data = {
-                'metadata': {
-                    'analysis_date': datetime.now().isoformat(),
-                    'ror_id': st.session_state.selected_ror,
-                    'original_period': st.session_state.orig_years_list,
-                    'search_period': st.session_state.exp_years,
-                    'total_papers': len(df),
-                    'papers_in_period': len(df[df['belongs_to_period'] == True])
-                },
-                'papers': df.to_dict('records'),
-                'errors': st.session_state.errors_list
-            }
+            fig_cit_year = go.Figure()
+            fig_cit_year.add_trace(go.Scatter(
+                x=citations_by_year['late_year'],
+                y=citations_by_year['sum'],
+                mode='lines+markers',
+                name='Total Citations',
+                line=dict(color=st.session_state['plot_palette']['categorical'][0], width=2),
+                marker=dict(size=8)
+            ))
+            fig_cit_year.add_trace(go.Scatter(
+                x=citations_by_year['late_year'],
+                y=citations_by_year['mean'],
+                mode='lines+markers',
+                name='Average Citations',
+                line=dict(color=st.session_state['plot_palette']['categorical'][1], width=2),
+                marker=dict(size=8),
+                yaxis='y2'
+            ))
             
-            json_str = json.dumps(json_data, indent=2, default=str).encode('utf-8')
-            st.download_button(
-                label="📥 Download JSON",
-                data=json_str,
-                file_name=f"analysis_{st.session_state.selected_ror}.json",
-                mime="application/json",
-                use_container_width=True
+            fig_cit_year.update_layout(
+                title='Citations by Year',
+                xaxis_title='Year',
+                yaxis=dict(title='Total Citations'),
+                yaxis2=dict(title='Average Citations', overlaying='y', side='right'),
+                hovermode='x'
             )
+            fig_cit_year = apply_scientific_style(fig_cit_year)
+            st.plotly_chart(fig_cit_year, use_container_width=True)
+    
+    with tab6:
+        st.markdown("### Database Analysis")
         
-        # Preview
-        st.markdown("#### Data Preview")
-        st.dataframe(df.head(10), use_container_width=True)
+        col_db1, col_db2 = st.columns(2)
         
-    else:
-        st.info("👈 Please run an analysis first in the Search & Analysis tab")
+        with col_db1:
+            # WoS Quartile distribution
+            fig_wos_q = plot_quartile_distribution(filtered_df, 'WoS', st.session_state['plot_palette'])
+            if fig_wos_q:
+                st.plotly_chart(fig_wos_q, use_container_width=True)
+            else:
+                st.info("No WoS-indexed papers with quartile information")
+        
+        with col_db2:
+            # Scopus Quartile distribution
+            fig_scopus_q = plot_quartile_distribution(filtered_df, 'Scopus', st.session_state['plot_palette'])
+            if fig_scopus_q:
+                st.plotly_chart(fig_scopus_q, use_container_width=True)
+            else:
+                st.info("No Scopus-indexed papers with quartile information")
+        
+        # WoS vs Scopus comparison table
+        st.markdown("### Database Statistics")
+        
+        wos_papers = filtered_df[filtered_df['wos_indexed'] == True]
+        scopus_papers = filtered_df[filtered_df['scopus_indexed'] == True]
+        both_papers = filtered_df[(filtered_df['wos_indexed'] == True) & (filtered_df['scopus_indexed'] == True)]
+        
+        db_stats = pd.DataFrame({
+            'Metric': ['Number of Papers', 'Percentage', 'Average Citations', 'Total Citations'],
+            'WoS': [
+                len(wos_papers),
+                f"{len(wos_papers)/len(filtered_df)*100:.1f}%" if len(filtered_df) > 0 else '0%',
+                f"{wos_papers['citations_oa'].mean():.1f}" if len(wos_papers) > 0 else 'N/A',
+                f"{wos_papers['citations_oa'].sum():,}" if len(wos_papers) > 0 else '0'
+            ],
+            'Scopus': [
+                len(scopus_papers),
+                f"{len(scopus_papers)/len(filtered_df)*100:.1f}%" if len(filtered_df) > 0 else '0%',
+                f"{scopus_papers['citations_oa'].mean():.1f}" if len(scopus_papers) > 0 else 'N/A',
+                f"{scopus_papers['citations_oa'].sum():,}" if len(scopus_papers) > 0 else '0'
+            ],
+            'Both': [
+                len(both_papers),
+                f"{len(both_papers)/len(filtered_df)*100:.1f}%" if len(filtered_df) > 0 else '0%',
+                f"{both_papers['citations_oa'].mean():.1f}" if len(both_papers) > 0 else 'N/A',
+                f"{both_papers['citations_oa'].sum():,}" if len(both_papers) > 0 else '0'
+            ]
+        })
+        
+        st.dataframe(db_stats, use_container_width=True)
+    
+    # Data preview and export
+    st.markdown("### 📋 Data Preview")
+    st.dataframe(filtered_df.head(10), use_container_width=True)
+    
+    st.markdown("### 📥 Export Data")
+    
+    col_exp1, col_exp2, col_exp3 = st.columns(3)
+    
+    with col_exp1:
+        # CSV export
+        csv_data = filtered_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📊 Download CSV",
+            data=csv_data,
+            file_name=f"analysis_{st.session_state.selected_ror}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+    
+    with col_exp2:
+        # Excel export
+        if st.button("📈 Generate Excel Report", use_container_width=True):
+            with st.spinner("Generating Excel report..."):
+                filename = export_to_excel(
+                    filtered_df,
+                    filtered_df.to_dict('records'),
+                    st.session_state.errors_list,
+                    st.session_state.selected_ror,
+                    st.session_state.orig_years_list,
+                    st.session_state.exp_years
+                )
+                
+                if os.path.exists(filename):
+                    with open(filename, 'rb') as f:
+                        excel_data = f.read()
+                    
+                    st.download_button(
+                        label="📥 Download Excel File",
+                        data=excel_data,
+                        file_name=filename,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+    
+    with col_exp3:
+        # JSON export
+        json_data = json.dumps({
+            'metadata': {
+                'analysis_date': datetime.now().isoformat(),
+                'ror_id': st.session_state.selected_ror,
+                'organization_name': st.session_state.selected_org_name,
+                'original_period': st.session_state.orig_years_list,
+                'search_period': st.session_state.exp_years,
+                'total_papers': len(filtered_df),
+                'wos_indexed': int(filtered_df['wos_indexed'].sum()) if 'wos_indexed' in filtered_df.columns else 0,
+                'scopus_indexed': int(filtered_df['scopus_indexed'].sum()) if 'scopus_indexed' in filtered_df.columns else 0
+            },
+            'papers': filtered_df.to_dict('records')
+        }, indent=2, default=str).encode('utf-8')
+        
+        st.download_button(
+            label="📋 Download JSON",
+            data=json_data,
+            file_name=f"analysis_{st.session_state.selected_ror}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+            mime="application/json",
+            use_container_width=True
+        )
 
 # Footer
 st.markdown("---")
@@ -2532,23 +3573,22 @@ with col1:
 with col2:
     st.markdown(f"**Logs:** `{LOG_DIR}`")
 with col3:
-    st.markdown(f"**Version:** 2.0.0")
+    st.markdown(f"**Version:** 3.0.0")
 
-# Display random color palette info
+# Display current color palette info
 with st.expander("🎨 Current Color Palette"):
     colors = st.session_state.color_palette
     st.markdown(f"""
     <div style="display: flex; gap: 10px; padding: 10px;">
-        <div style="background-color: {colors['primary']}; width: 50px; height: 50px; border-radius: 10px;"></div>
-        <div style="background-color: {colors['secondary']}; width: 50px; height: 50px; border-radius: 10px;"></div>
-        <div style="background-color: {colors['accent']}; width: 50px; height: 50px; border-radius: 10px;"></div>
-        <div style="background-color: {colors['background']}; width: 50px; height: 50px; border-radius: 10px; border: 1px solid white;"></div>
-        <div style="background-color: {colors['success']}; width: 50px; height: 50px; border-radius: 10px;"></div>
-        <div style="background-color: {colors['warning']}; width: 50px; height: 50px; border-radius: 10px;"></div>
-        <div style="background-color: {colors['info']}; width: 50px; height: 50px; border-radius: 10px;"></div>
+        <div style="background-color: {colors['primary']}; width: 50px; height: 50px; border-radius: 10px;" title="Primary"></div>
+        <div style="background-color: {colors['secondary']}; width: 50px; height: 50px; border-radius: 10px;" title="Secondary"></div>
+        <div style="background-color: {colors['accent']}; width: 50px; height: 50px; border-radius: 10px;" title="Accent"></div>
+        <div style="background-color: {colors['background']}; width: 50px; height: 50px; border-radius: 10px; border: 1px solid white;" title="Background"></div>
+        <div style="background-color: {colors['success']}; width: 50px; height: 50px; border-radius: 10px;" title="Success"></div>
+        <div style="background-color: {colors['warning']}; width: 50px; height: 50px; border-radius: 10px;" title="Warning"></div>
+        <div style="background-color: {colors['info']}; width: 50px; height: 50px; border-radius: 10px;" title="Info"></div>
     </div>
     """, unsafe_allow_html=True)
-    if st.button("🎲 Randomize Palette"):
+    if st.button("🎲 Randomize Interface Colors"):
         st.session_state.color_palette = random.choice(COLOR_PALETTES)
         st.rerun()
-
