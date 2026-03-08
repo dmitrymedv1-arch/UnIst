@@ -284,16 +284,18 @@ PLOT_COLOR_PALETTES = [
 if 'color_palette' not in st.session_state:
     st.session_state.color_palette = random.choice(COLOR_PALETTES)
 
-# Initialize plot color palette (user selectable)
+# Random plot palette selection at startup (10 interesting palettes, randomly chosen)
 if 'plot_palette' not in st.session_state:
-    st.session_state['plot_palette'] = PLOT_COLOR_PALETTES[0]  # Default to Viridis
+    # Select from first 10 palettes (all are interesting)
+    interesting_palettes = PLOT_COLOR_PALETTES[:10]
+    st.session_state['plot_palette'] = random.choice(interesting_palettes)
 
 # Page configuration
 st.set_page_config(
     page_title="UnIst Analytics",
     page_icon="📚",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"  # Sidebar collapsed by default
 )
 
 # Logo loading
@@ -301,7 +303,7 @@ def get_logo_html():
     if os.path.exists("logo.png"):
         with open("logo.png", "rb") as f:
             logo_data = base64.b64encode(f.read()).decode()
-        return f'<img src="data:image/png;base64,{logo_data}" style="height: 60px; margin-right: 10px;">'
+        return f'<img src="data:image/png;base64,{logo_data}" style="height: 80px; margin-right: 10px;">'  # Increased height
     return ""
 
 # Custom CSS with dynamic colors - Scientific Academic Style
@@ -329,7 +331,7 @@ def get_custom_css():
             background-color: {colors['background']};
         }}
         
-        /* Main header */
+        /* Main header - only logo now */
         .main-header {{
             font-size: 2.5rem;
             font-weight: 700;
@@ -558,9 +560,9 @@ def get_custom_css():
             background: {colors['primary']}05;
         }}
         
-        /* Sidebar */
-        .css-1d391kg {{
-            background: linear-gradient(180deg, {colors['gradient_start']}dd, {colors['gradient_end']}dd);
+        /* Hide sidebar completely */
+        section[data-testid="stSidebar"] {{
+            display: none;
         }}
     </style>
     """
@@ -568,17 +570,11 @@ def get_custom_css():
 # Apply custom CSS
 st.markdown(get_custom_css(), unsafe_allow_html=True)
 
-# Header with logo
+# Header with logo only (no text)
 logo_html = get_logo_html()
 st.markdown(f"""
 <div style="display: flex; align-items: center; margin-bottom: 20px;">
     {logo_html}
-    <h1 style="margin: 0;">UnIst Analytics</h1>
-</div>
-<div style="text-align: right; margin-bottom: 20px;">
-    <span class="badge" style="background-color: {st.session_state.color_palette['secondary']}; color: white; padding: 5px 15px; border-radius: 20px;">
-        Advanced Scientific Publication Analyzer
-    </span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -2625,132 +2621,32 @@ def plot_quartile_distribution(df, database, plot_palette: Dict):
     fig = apply_scientific_style(fig)
     return fig
 
-# Sidebar
-with st.sidebar:
-    st.markdown(f"""
-    <div style="text-align: center; padding: 20px;">
-        <h2 style="color: {st.session_state.color_palette['primary']};">🔬 UnIst Analytics</h2>
-        <p>Advanced Scientific Publication Analyzer</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Step indicator
-    st.markdown("### 📊 Progress")
-    
-    steps = ["Search", "Period", "Results"]
-    current_step = st.session_state['step'] - 1
-    
-    step_html = '<div style="margin: 1rem 0;">'
-    for i, step_name in enumerate(steps):
-        if i < current_step:
-            status = "✅"
-        elif i == current_step:
-            status = "▶️"
-        else:
-            status = "⏳"
-        step_html += f'<div style="margin: 0.5rem 0;">{status} Step {i+1}: {step_name}</div>'
-    step_html += '</div>'
-    
-    st.markdown(step_html, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # Current selection info
-    if st.session_state.selected_ror:
-        st.markdown("### 🏛 Current Selection")
-        st.info(f"""
-        **Organization:** {st.session_state.selected_org_name or 'Unknown'}
-        **ROR:** `{st.session_state.selected_ror}`
-        **Country:** {st.session_state.selected_org_country or 'N/A'}
-        """)
-    
-    if st.session_state.orig_years_list:
-        st.markdown(f"**Period:** {', '.join(map(str, st.session_state.orig_years_list))}")
-    
-    st.markdown("---")
-    
-    # Recent institutions
-    if st.session_state['recent_institutions']:
-        st.markdown("### 🕒 Recent Institutions")
-        for inst in st.session_state['recent_institutions']:
-            if st.button(
-                f"🏛️ {inst['name'][:30]}...",
-                key=f"recent_{inst['ror']}",
-                help=f"ROR: {inst['ror']}",
-                use_container_width=True
-            ):
-                st.session_state.selected_ror = inst['ror']
-                st.session_state.selected_org_name = inst['name']
-                st.session_state.selected_org_country = inst.get('country', '')
-                st.session_state.step = 2
-                st.rerun()
-        
-        st.markdown("---")
-    
-    # Database status
-    st.markdown("### 📚 Database Status")
-    
-    if st.session_state.if_df is not None:
-        st.success("✅ WoS (IF.xlsx) loaded")
-    else:
-        st.warning("⚠️ WoS (IF.xlsx) not found")
-    
-    if st.session_state.cs_df is not None:
-        st.success("✅ Scopus (CS.xlsx) loaded")
-    else:
-        st.warning("⚠️ Scopus (CS.xlsx) not found")
-    
-    st.markdown("---")
-    
-    # Plot color palette selector
-    st.markdown("### 🎨 Plot Colors")
-    palette_names = [p['name'] for p in PLOT_COLOR_PALETTES]
-    selected_palette_idx = palette_names.index(st.session_state['plot_palette']['name']) if st.session_state['plot_palette']['name'] in palette_names else 0
-    
-    selected_palette_name = st.selectbox(
-        "Color scheme for plots",
-        options=palette_names,
-        index=selected_palette_idx,
-        key="plot_palette_selector"
-    )
-    
-    # Update selected palette
-    for p in PLOT_COLOR_PALETTES:
-        if p['name'] == selected_palette_name:
-            st.session_state['plot_palette'] = p
-            break
-    
-    st.markdown("---")
-    
-    # Cache info
-    st.markdown("### 💾 Cache Info")
-    cache_size = len([f for f in os.listdir(CACHE_DIR) if f.endswith('.pkl')]) if os.path.exists(CACHE_DIR) else 0
-    st.info(f"📁 Cached items: {cache_size}")
-    
-    if st.button("🗑️ Clear Cache", use_container_width=True):
-        cache.clear()
-        st.success("Cache cleared!")
-        st.rerun()
-    
-    st.markdown("---")
-    
-    # Reset button
-    if st.button("🔄 Reset Application", use_container_width=True):
-        palette = st.session_state.color_palette
-        plot_palette = st.session_state['plot_palette']
-        recent = st.session_state['recent_institutions']
-        for key in list(st.session_state.keys()):
-            if key not in ['color_palette', 'plot_palette', 'recent_institutions']:
-                del st.session_state[key]
-        st.session_state.color_palette = palette
-        st.session_state['plot_palette'] = plot_palette
-        st.session_state['recent_institutions'] = recent
-        st.session_state.step = 1
-        st.rerun()
-
 # Main content area - Step 1: Organization Search
 if st.session_state.step == 1:
     st.markdown("## 🔍 Step 1: Organization Search")
+    
+    # Add cache and reset buttons at the top
+    col_cache1, col_cache2, col_cache3, col_cache4 = st.columns([3, 1, 1, 3])
+    with col_cache2:
+        if st.button("🗑️ Clear Cache", use_container_width=True):
+            cache.clear()
+            st.success("Cache cleared!")
+            st.rerun()
+    with col_cache3:
+        if st.button("🔄 Reset", use_container_width=True):
+            palette = st.session_state.color_palette
+            plot_palette = st.session_state['plot_palette']
+            recent = st.session_state['recent_institutions']
+            for key in list(st.session_state.keys()):
+                if key not in ['color_palette', 'plot_palette', 'recent_institutions']:
+                    del st.session_state[key]
+            st.session_state.color_palette = palette
+            st.session_state['plot_palette'] = plot_palette
+            st.session_state['recent_institutions'] = recent
+            st.session_state.step = 1
+            st.rerun()
+    
+    st.markdown("---")
     
     col1, col2 = st.columns([2, 1])
     
@@ -2908,10 +2804,91 @@ if st.session_state.step == 1:
         - `Institute of High-Temperature Electrochemistry`
         - `Massachusetts Institute of Technology`
         """)
+        
+        # Recent institutions
+        if st.session_state['recent_institutions']:
+            st.markdown("### 🕒 Recent Institutions")
+            for inst in st.session_state['recent_institutions']:
+                if st.button(
+                    f"🏛️ {inst['name'][:30]}...",
+                    key=f"recent_{inst['ror']}",
+                    help=f"ROR: {inst['ror']}",
+                    use_container_width=True
+                ):
+                    st.session_state.selected_ror = inst['ror']
+                    st.session_state.selected_org_name = inst['name']
+                    st.session_state.selected_org_country = inst.get('country', '')
+                    st.session_state.step = 2
+                    st.rerun()
+        
+        st.markdown("---")
+        
+        # Database status
+        st.markdown("### 📚 Database Status")
+        
+        if st.session_state.if_df is not None:
+            st.success("✅ WoS (IF.xlsx) loaded")
+        else:
+            st.warning("⚠️ WoS (IF.xlsx) not found")
+        
+        if st.session_state.cs_df is not None:
+            st.success("✅ Scopus (CS.xlsx) loaded")
+        else:
+            st.warning("⚠️ Scopus (CS.xlsx) not found")
+        
+        st.markdown("---")
+        
+        # Plot color palette selector
+        st.markdown("### 🎨 Plot Colors")
+        palette_names = [p['name'] for p in PLOT_COLOR_PALETTES]
+        selected_palette_idx = palette_names.index(st.session_state['plot_palette']['name']) if st.session_state['plot_palette']['name'] in palette_names else 0
+        
+        selected_palette_name = st.selectbox(
+            "Color scheme for plots",
+            options=palette_names,
+            index=selected_palette_idx,
+            key="plot_palette_selector"
+        )
+        
+        # Update selected palette
+        for p in PLOT_COLOR_PALETTES:
+            if p['name'] == selected_palette_name:
+                st.session_state['plot_palette'] = p
+                break
+        
+        st.markdown("---")
+        
+        # Cache info
+        st.markdown("### 💾 Cache Info")
+        cache_size = len([f for f in os.listdir(CACHE_DIR) if f.endswith('.pkl')]) if os.path.exists(CACHE_DIR) else 0
+        st.info(f"📁 Cached items: {cache_size}")
 
 # Step 2: Period Selection
 elif st.session_state.step == 2:
     st.markdown("## 📅 Step 2: Analysis Period")
+    
+    # Add cache and reset buttons at the top
+    col_cache1, col_cache2, col_cache3, col_cache4 = st.columns([3, 1, 1, 3])
+    with col_cache2:
+        if st.button("🗑️ Clear Cache", use_container_width=True):
+            cache.clear()
+            st.success("Cache cleared!")
+            st.rerun()
+    with col_cache3:
+        if st.button("🔄 Reset", use_container_width=True):
+            palette = st.session_state.color_palette
+            plot_palette = st.session_state['plot_palette']
+            recent = st.session_state['recent_institutions']
+            for key in list(st.session_state.keys()):
+                if key not in ['color_palette', 'plot_palette', 'recent_institutions']:
+                    del st.session_state[key]
+            st.session_state.color_palette = palette
+            st.session_state['plot_palette'] = plot_palette
+            st.session_state['recent_institutions'] = recent
+            st.session_state.step = 1
+            st.rerun()
+    
+    st.markdown("---")
     
     if not st.session_state.selected_ror:
         st.warning("Please select an organization first.")
@@ -3049,6 +3026,29 @@ elif st.session_state.step == 2:
 # Step 3: Results
 elif st.session_state.step == 3 and st.session_state.analysis_complete:
     st.markdown("## 📊 Step 3: Analysis Results")
+    
+    # Add cache and reset buttons at the top
+    col_cache1, col_cache2, col_cache3, col_cache4 = st.columns([3, 1, 1, 3])
+    with col_cache2:
+        if st.button("🗑️ Clear Cache", use_container_width=True):
+            cache.clear()
+            st.success("Cache cleared!")
+            st.rerun()
+    with col_cache3:
+        if st.button("🔄 Reset", use_container_width=True):
+            palette = st.session_state.color_palette
+            plot_palette = st.session_state['plot_palette']
+            recent = st.session_state['recent_institutions']
+            for key in list(st.session_state.keys()):
+                if key not in ['color_palette', 'plot_palette', 'recent_institutions']:
+                    del st.session_state[key]
+            st.session_state.color_palette = palette
+            st.session_state['plot_palette'] = plot_palette
+            st.session_state['recent_institutions'] = recent
+            st.session_state.step = 1
+            st.rerun()
+    
+    st.markdown("---")
     
     # Navigation buttons
     col1, col2, col3 = st.columns([1, 1, 4])
@@ -3570,36 +3570,5 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
             mime="application/json",
             use_container_width=True
         )
-
-# Footer
-st.markdown("---")
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.markdown(f"**Cache:** `{CACHE_DIR}`")
-with col2:
-    st.markdown(f"**Logs:** `{LOG_DIR}`")
-with col3:
-    st.markdown(f"**Version:** 3.0.0")
-
-# Display current color palette info
-with st.expander("🎨 Current Color Palette"):
-    colors = st.session_state.color_palette
-    st.markdown(f"""
-    <div style="display: flex; gap: 10px; padding: 10px;">
-        <div style="background-color: {colors['primary']}; width: 50px; height: 50px; border-radius: 10px;" title="Primary"></div>
-        <div style="background-color: {colors['secondary']}; width: 50px; height: 50px; border-radius: 10px;" title="Secondary"></div>
-        <div style="background-color: {colors['accent']}; width: 50px; height: 50px; border-radius: 10px;" title="Accent"></div>
-        <div style="background-color: {colors['background']}; width: 50px; height: 50px; border-radius: 10px; border: 1px solid white;" title="Background"></div>
-        <div style="background-color: {colors['success']}; width: 50px; height: 50px; border-radius: 10px;" title="Success"></div>
-        <div style="background-color: {colors['warning']}; width: 50px; height: 50px; border-radius: 10px;" title="Warning"></div>
-        <div style="background-color: {colors['info']}; width: 50px; height: 50px; border-radius: 10px;" title="Info"></div>
-    </div>
-    """, unsafe_allow_html=True)
-    if st.button("🎲 Randomize Interface Colors"):
-        st.session_state.color_palette = random.choice(COLOR_PALETTES)
-        st.rerun()
-
-
-
 
 
