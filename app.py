@@ -1494,12 +1494,15 @@ def check_affiliation_match(paper_data: Dict, target_org_name: str) -> Tuple[boo
     """
     Проверяет, принадлежит ли статья указанному институту.
     Возвращает: (принадлежит, источник_проверки)
-    Источники: 'crossref', 'openalex', 'none'
     """
+    
+    logger.debug(f"Checking affiliation for: {target_org_name}")
     
     # Нормализуем название искомого института для сравнения
     target_normalized = normalize_org_name(target_org_name)
     target_words = set(target_normalized.split())
+    
+    logger.debug(f"Target normalized: '{target_normalized}', words: {target_words}")
     
     # Функция для проверки совпадения с нормализованным названием
     def matches_target(affiliation_name: str) -> bool:
@@ -1507,19 +1510,26 @@ def check_affiliation_match(paper_data: Dict, target_org_name: str) -> Tuple[boo
             return False
         aff_normalized = normalize_org_name(affiliation_name)
         
+        logger.debug(f"Comparing: '{aff_normalized}' with '{target_normalized}'")
+        
         # Проверяем точное совпадение
         if aff_normalized == target_normalized:
+            logger.debug(f"Exact match found")
             return True
         
         # Проверяем, содержится ли target в аффилиации
         if target_normalized in aff_normalized:
+            logger.debug(f"Target found in affiliation")
             return True
         
         # Проверяем, совпадают ли ключевые слова
         aff_words = set(aff_normalized.split())
         common_words = target_words & aff_words
+        logger.debug(f"Common words: {common_words}")
+        
         # Если совпадает больше 2 слов или все слова target'а
         if len(common_words) >= 2 or common_words == target_words:
+            logger.debug(f"Word match found: {common_words}")
             return True
         
         return False
@@ -1527,25 +1537,33 @@ def check_affiliation_match(paper_data: Dict, target_org_name: str) -> Tuple[boo
     # 1. Проверяем данные из Crossref (приоритет)
     if paper_data.get('has_crossref_affiliations', False):
         crossref_affs = paper_data.get('crossref_affiliations', [])
+        logger.debug(f"Crossref affiliations: {crossref_affs}")
+        
         for aff in crossref_affs:
             if matches_target(aff):
                 logger.debug(f"Affiliation matched in Crossref: {aff}")
                 return True, 'crossref'
         # Если в Crossref есть аффилиации, но наша не найдена - статья не принадлежит нам
+        logger.debug("No match in Crossref, rejecting")
         return False, 'crossref'
     
     # 2. Если в Crossref нет аффилиаций, проверяем OpenAlex
+    logger.debug("No Crossref affiliations, checking OpenAlex")
     oa_affs_str = paper_data.get('affiliations', '')
     if oa_affs_str:
         oa_affs = [a.strip() for a in oa_affs_str.split(';') if a.strip()]
+        logger.debug(f"OpenAlex affiliations: {oa_affs}")
+        
         for aff in oa_affs:
             if matches_target(aff):
                 logger.debug(f"Affiliation matched in OpenAlex: {aff}")
                 return True, 'openalex'
         # Если в OpenAlex есть аффилиации, но наша не найдена
+        logger.debug("No match in OpenAlex, rejecting")
         return False, 'openalex'
     
     # 3. Нет данных ни в одном источнике
+    logger.debug("No affiliation data available")
     return False, 'none'
 
 def fetch_all_dois_openalex(ror, years_expanded):
@@ -3633,6 +3651,7 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
             mime="application/json",
             use_container_width=True
         )
+
 
 
 
