@@ -2625,29 +2625,6 @@ def plot_quartile_distribution(df, database, plot_palette: Dict):
 if st.session_state.step == 1:
     st.markdown("## 🔍 Step 1: Organization Search")
     
-    # Add cache and reset buttons at the top
-    col_cache1, col_cache2, col_cache3, col_cache4 = st.columns([3, 1, 1, 3])
-    with col_cache2:
-        if st.button("🗑️ Clear Cache", use_container_width=True):
-            cache.clear()
-            st.success("Cache cleared!")
-            st.rerun()
-    with col_cache3:
-        if st.button("🔄 Reset", use_container_width=True):
-            palette = st.session_state.color_palette
-            plot_palette = st.session_state['plot_palette']
-            recent = st.session_state['recent_institutions']
-            for key in list(st.session_state.keys()):
-                if key not in ['color_palette', 'plot_palette', 'recent_institutions']:
-                    del st.session_state[key]
-            st.session_state.color_palette = palette
-            st.session_state['plot_palette'] = plot_palette
-            st.session_state['recent_institutions'] = recent
-            st.session_state.step = 1
-            st.rerun()
-    
-    st.markdown("---")
-    
     col1, col2 = st.columns([2, 1])
     
     with col1:
@@ -2867,28 +2844,6 @@ if st.session_state.step == 1:
 elif st.session_state.step == 2:
     st.markdown("## 📅 Step 2: Analysis Period")
     
-    # Add cache and reset buttons at the top
-    col_cache1, col_cache2, col_cache3, col_cache4 = st.columns([3, 1, 1, 3])
-    with col_cache2:
-        if st.button("🗑️ Clear Cache", use_container_width=True):
-            cache.clear()
-            st.success("Cache cleared!")
-            st.rerun()
-    with col_cache3:
-        if st.button("🔄 Reset", use_container_width=True):
-            palette = st.session_state.color_palette
-            plot_palette = st.session_state['plot_palette']
-            recent = st.session_state['recent_institutions']
-            for key in list(st.session_state.keys()):
-                if key not in ['color_palette', 'plot_palette', 'recent_institutions']:
-                    del st.session_state[key]
-            st.session_state.color_palette = palette
-            st.session_state['plot_palette'] = plot_palette
-            st.session_state['recent_institutions'] = recent
-            st.session_state.step = 1
-            st.rerun()
-    
-    st.markdown("---")
     
     if not st.session_state.selected_ror:
         st.warning("Please select an organization first.")
@@ -3027,28 +2982,6 @@ elif st.session_state.step == 2:
 elif st.session_state.step == 3 and st.session_state.analysis_complete:
     st.markdown("## 📊 Step 3: Analysis Results")
     
-    # Add cache and reset buttons at the top
-    col_cache1, col_cache2, col_cache3, col_cache4 = st.columns([3, 1, 1, 3])
-    with col_cache2:
-        if st.button("🗑️ Clear Cache", use_container_width=True):
-            cache.clear()
-            st.success("Cache cleared!")
-            st.rerun()
-    with col_cache3:
-        if st.button("🔄 Reset", use_container_width=True):
-            palette = st.session_state.color_palette
-            plot_palette = st.session_state['plot_palette']
-            recent = st.session_state['recent_institutions']
-            for key in list(st.session_state.keys()):
-                if key not in ['color_palette', 'plot_palette', 'recent_institutions']:
-                    del st.session_state[key]
-            st.session_state.color_palette = palette
-            st.session_state['plot_palette'] = plot_palette
-            st.session_state['recent_institutions'] = recent
-            st.session_state.step = 1
-            st.rerun()
-    
-    st.markdown("---")
     
     # Navigation buttons
     col1, col2, col3 = st.columns([1, 1, 4])
@@ -3570,6 +3503,7 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
             mime="application/json",
             use_container_width=True
         )
+
 
 
 
