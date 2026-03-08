@@ -407,7 +407,7 @@ def get_custom_css():
         text-align: center;
         padding: 1rem;
         background: rgba(255,255,255,0.05);
-        border: 2px solid {colors['border']};
+        border: 2px solid {colors['secondary']};
         border-radius: 10px;
         position: relative;
         transition: all 0.3s;
@@ -3592,3 +3592,4 @@ with st.expander("🎨 Current Color Palette"):
     if st.button("🎲 Randomize Interface Colors"):
         st.session_state.color_palette = random.choice(COLOR_PALETTES)
         st.rerun()
+
