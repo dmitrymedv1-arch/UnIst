@@ -303,7 +303,7 @@ def get_logo_html():
     if os.path.exists("logo.png"):
         with open("logo.png", "rb") as f:
             logo_data = base64.b64encode(f.read()).decode()
-        return f'<img src="data:image/png;base64,{logo_data}" style="height: 80px; margin-right: 10px;">'  # Increased height
+        return f'<img src="data:image/png;base64,{logo_data}" style="height: 150px; margin-right: 10px;">'  # Increased height
     return ""
 
 # Custom CSS with dynamic colors - Scientific Academic Style
@@ -3570,5 +3570,6 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
             mime="application/json",
             use_container_width=True
         )
+
 
 
