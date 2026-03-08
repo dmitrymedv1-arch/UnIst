@@ -306,7 +306,22 @@ def get_logo_html():
 
 # Custom CSS with dynamic colors - Scientific Academic Style
 def get_custom_css():
-    colors = st.session_state.color_palette
+    colors = {
+        'background': '#f0f9ff',
+        'text': '#002b36',
+        'primary': '#006994',
+        'secondary': '#00b4d8',
+        'accent': '#03045e',
+        'success': '#2ecc71',
+        'warning': '#f39c12',
+        'info': '#3498db',
+        'gradient_start': '#023e8a',
+        'gradient_end': '#0077be',
+        'card_bg': '#ffffff',
+        'card_border': '#caf0f8',
+        'metric_bg': '#e6f3ff'
+    }
+    
     return f"""
     <style>
         /* Global styles */
@@ -314,7 +329,7 @@ def get_custom_css():
             background-color: {colors['background']};
         }}
         
-        /* Headers */
+        /* Main header */
         .main-header {{
             font-size: 2.5rem;
             font-weight: 700;
@@ -322,16 +337,15 @@ def get_custom_css():
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 0.5rem;
-            padding: 0.5rem 0;
         }}
         
-        .sub-header {{
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: {colors['text']};
-            margin-bottom: 1rem;
+        /* Sub headers */
+        h1, h2, h3 {{
+            color: {colors['text']} !important;
+            font-weight: 600 !important;
             border-bottom: 3px solid {colors['primary']};
             padding-bottom: 0.5rem;
+            margin-top: 1rem;
         }}
         
         /* Cards */
@@ -340,7 +354,7 @@ def get_custom_css():
             border-radius: 15px;
             padding: 1.5rem;
             box-shadow: 0 8px 20px rgba(0,0,0,0.05);
-            border: 1px solid {colors['border']};
+            border: 1px solid {colors['card_border']};
             margin-bottom: 1rem;
             transition: transform 0.2s, box-shadow 0.2s;
         }}
@@ -350,6 +364,7 @@ def get_custom_css():
             box-shadow: 0 12px 25px rgba(0,0,0,0.1);
         }}
         
+        /* Metric cards */
         .metric-card {{
             background: linear-gradient(135deg, {colors['gradient_start']}10, {colors['gradient_end']}10);
             border-radius: 12px;
@@ -373,7 +388,7 @@ def get_custom_css():
             margin-top: 0.3rem;
         }}
         
-        /* Steps */
+        /* Step indicator */
         .step-container {{
             display: flex;
             justify-content: space-between;
@@ -386,7 +401,7 @@ def get_custom_css():
             text-align: center;
             padding: 1rem;
             background: {colors['card_bg']};
-            border: 2px solid {colors['border']};
+            border: 2px solid {colors['card_border']};
             border-radius: 10px;
             position: relative;
             transition: all 0.3s;
@@ -435,11 +450,6 @@ def get_custom_css():
             box-shadow: 0 6px 15px {colors['primary']}50;
         }}
         
-        .stButton > button:active {{
-            transform: translateY(0);
-        }}
-        
-        /* Secondary button */
         .stButton > button[kind="secondary"] {{
             background: white;
             color: {colors['primary']};
@@ -477,20 +487,20 @@ def get_custom_css():
         }}
         
         .error-box {{
-            background: {colors['danger']}10;
-            border-left: 4px solid {colors['danger']};
+            background: {colors['warning']}20;
+            border-left: 4px solid {colors['warning']};
             border-radius: 8px;
             padding: 1rem;
             margin: 1rem 0;
         }}
         
-        /* Tabs styling */
+        /* Tabs */
         .stTabs [data-baseweb="tab-list"] {{
             gap: 8px;
             background-color: {colors['card_bg']};
             padding: 0.5rem;
             border-radius: 10px;
-            border: 1px solid {colors['border']};
+            border: 1px solid {colors['card_border']};
         }}
         
         .stTabs [data-baseweb="tab"] {{
@@ -509,33 +519,33 @@ def get_custom_css():
             background: linear-gradient(90deg, {colors['gradient_start']}, {colors['gradient_end']});
         }}
         
-        /* Dataframe styling */
-        .dataframe {{
-            border: 1px solid {colors['border']};
+        /* Dataframe */
+        .stDataFrame {{
+            border: 1px solid {colors['card_border']};
             border-radius: 10px;
             overflow: hidden;
         }}
         
-        .dataframe th {{
+        .stDataFrame th {{
             background: linear-gradient(135deg, {colors['gradient_start']}, {colors['gradient_end']});
             color: white;
             padding: 0.75rem;
             font-weight: 600;
         }}
         
-        .dataframe td {{
+        .stDataFrame td {{
             padding: 0.5rem 0.75rem;
-            border-bottom: 1px solid {colors['border']};
+            border-bottom: 1px solid {colors['card_border']};
         }}
         
-        .dataframe tr:hover {{
+        .stDataFrame tr:hover {{
             background: {colors['primary']}05;
         }}
         
         /* Recent institutions */
         .recent-inst {{
             background: {colors['card_bg']};
-            border: 1px solid {colors['border']};
+            border: 1px solid {colors['card_border']};
             border-radius: 8px;
             padding: 0.5rem;
             margin: 0.2rem 0;
@@ -546,6 +556,11 @@ def get_custom_css():
         .recent-inst:hover {{
             border-color: {colors['primary']};
             background: {colors['primary']}05;
+        }}
+        
+        /* Sidebar */
+        .css-1d391kg {{
+            background: linear-gradient(180deg, {colors['gradient_start']}dd, {colors['gradient_end']}dd);
         }}
     </style>
     """
@@ -3583,6 +3598,7 @@ with st.expander("🎨 Current Color Palette"):
     if st.button("🎲 Randomize Interface Colors"):
         st.session_state.color_palette = random.choice(COLOR_PALETTES)
         st.rerun()
+
 
 
 
