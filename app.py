@@ -1,35 +1,32 @@
+# app.py
 import streamlit as st
+import requests
 import pandas as pd
 import numpy as np
-import requests
-import time
-import hashlib
-import pickle
-import os
 import re
-import sys
-import logging
 from datetime import datetime
-from dateutil.parser import parse as date_parse
+import time
+import json
+import hashlib
+import os
 from unidecode import unidecode
 from rapidfuzz import fuzz, process
+import pickle
 from collections import defaultdict, Counter
-import concurrent.futures
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+import logging
+from io import BytesIO
+import sys
 import networkx as nx
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
-import plotly.express as px
 from plotly.subplots import make_subplots
-import io
 import base64
-from typing import Optional, Dict, List, Tuple, Any
+from dateutil.parser import parse as date_parse
+import concurrent.futures
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import random
 
-# =============================================================================
-# НАУЧНЫЙ СТИЛЬ ГРАФИКОВ
-# =============================================================================
-
+# Научный стиль для графиков matplotlib
 plt.rcParams.update({
     # Font sizes and weights
     'font.size': 10,
@@ -51,13 +48,16 @@ plt.rcParams.update({
     'xtick.labelsize': 10,
     'ytick.labelsize': 10,
     'xtick.direction': 'out',
+    'ytick.minor.visible': True,
     'ytick.direction': 'out',
     'xtick.major.size': 4,
     'xtick.minor.size': 2,
     'ytick.major.size': 4,
     'ytick.minor.size': 2,
     'xtick.major.width': 0.8,
+    'ytick.minor.width': 0.6,
     'ytick.major.width': 0.8,
+    'ytick.minor.width': 0.6,
     
     # Legend
     'legend.fontsize': 10,
@@ -79,38 +79,333 @@ plt.rcParams.update({
     'errorbar.capsize': 3,
 })
 
-# =============================================================================
-# ЦВЕТОВЫЕ ПАЛИТРЫ (10 вариантов)
-# =============================================================================
+# Случайная цветовая палитра для интерфейса
+COLOR_PALETTES = [
+    {
+        'primary': '#FF6B6B',
+        'secondary': '#4ECDC4',
+        'accent': '#45B7D1',
+        'background': '#2C3E50',
+        'text': '#FFFFFF',
+        'success': '#95E1D3',
+        'warning': '#F8A5C2',
+        'info': '#B8E994'
+    },
+    {
+        'primary': '#6C5B7B',
+        'secondary': '#F8A5C2',
+        'accent': '#F5CD79',
+        'background': '#2A363B',
+        'text': '#FFFFFF',
+        'success': '#99B898',
+        'warning': '#FECEAB',
+        'info': '#E84A5F'
+    },
+    {
+        'primary': '#2C3E50',
+        'secondary': '#E74C3C',
+        'accent': '#3498DB',
+        'background': '#1A2634',
+        'text': '#ECF0F1',
+        'success': '#2ECC71',
+        'warning': '#F39C12',
+        'info': '#9B59B6'
+    },
+    {
+        'primary': '#16A085',
+        'secondary': '#F39C12',
+        'accent': '#E74C3C',
+        'background': '#2C3E50',
+        'text': '#FFFFFF',
+        'success': '#27AE60',
+        'warning': '#F1C40F',
+        'info': '#8E44AD'
+    },
+    {
+        'primary': '#D35400',
+        'secondary': '#1ABC9C',
+        'accent': '#3498DB',
+        'background': '#2C3E50',
+        'text': '#FFFFFF',
+        'success': '#27AE60',
+        'warning': '#F39C12',
+        'info': '#9B59B6'
+    },
+    {
+        'primary': '#8E44AD',
+        'secondary': '#E67E22',
+        'accent': '#16A085',
+        'background': '#2C3E50',
+        'text': '#FFFFFF',
+        'success': '#2ECC71',
+        'warning': '#F1C40F',
+        'info': '#E74C3C'
+    },
+    {
+        'primary': '#2980B9',
+        'secondary': '#E74C3C',
+        'accent': '#F39C12',
+        'background': '#1A2634',
+        'text': '#ECF0F1',
+        'success': '#27AE60',
+        'warning': '#F1C40F',
+        'info': '#8E44AD'
+    },
+    {
+        'primary': '#27AE60',
+        'secondary': '#E67E22',
+        'accent': '#3498DB',
+        'background': '#2C3E50',
+        'text': '#FFFFFF',
+        'success': '#16A085',
+        'warning': '#F39C12',
+        'info': '#9B59B6'
+    },
+    {
+        'primary': '#E67E22',
+        'secondary': '#8E44AD',
+        'accent': '#16A085',
+        'background': '#2C3E50',
+        'text': '#FFFFFF',
+        'success': '#27AE60',
+        'warning': '#F1C40F',
+        'info': '#3498DB'
+    },
+    {
+        'primary': '#95A5A6',
+        'secondary': '#E74C3C',
+        'accent': '#3498DB',
+        'background': '#2C3E50',
+        'text': '#FFFFFF',
+        'success': '#2ECC71',
+        'warning': '#F39C12',
+        'info': '#9B59B6'
+    }
+]
 
-COLOR_PALETTES = {
-    "Научная классика": ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"],
-    "Современная минималистичная": ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B2", "#937860", "#DA8BC3", "#8C8C8C", "#CCB974", "#64B5CD"],
-    "Теплая земля": ["#BF5B17", "#F46D43", "#FDAE61", "#FEE08B", "#FFFFBF", "#D9EF8B", "#A6D96A", "#66BD63", "#1A9850", "#006837"],
-    "Океаническая": ["#053061", "#2166AC", "#4393C3", "#92C5DE", "#D1E5F0", "#F7F7F7", "#FDDBC7", "#F4A582", "#D6604D", "#B2182B"],
-    "Винтажная": ["#A50F15", "#DE2D26", "#FB6A4A", "#FC9272", "#FCBBA1", "#FEE5D9", "#EFF3FF", "#BDD7E7", "#6BAED6", "#2171B5"],
-    "Неоновая": ["#FF00FF", "#00FF00", "#FF6600", "#00CCFF", "#FF3366", "#CC33FF", "#FFFF00", "#FF9933", "#33FF99", "#9966FF"],
-    "Пастельная": ["#FBB4AE", "#B3CDE3", "#CCEBC5", "#DECBE4", "#FED9A6", "#FFFFCC", "#E5D8BD", "#FDDAEC", "#F2F2F2", "#B3E2CD"],
-    "Монохромная синяя": ["#08306B", "#08519C", "#2171B5", "#4292C6", "#6BAED6", "#9ECAE1", "#C6DBEF", "#DEEBF7", "#F7FBFF", "#E3F2FD"],
-    "Закат": ["#67001F", "#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#F7F7F7", "#D1E5F0", "#92C5DE", "#4393C3", "#2166AC"],
-    "Лесная": ["#00441B", "#006D2C", "#238B45", "#41AB5D", "#74C476", "#A1D99B", "#C7E9C0", "#E5F5E0", "#F7FCF5", "#EDF8E9"]
-}
+# Случайный выбор палитры при запуске
+if 'color_palette' not in st.session_state:
+    st.session_state.color_palette = random.choice(COLOR_PALETTES)
 
-# Функция для получения случайной палитры
-def get_random_palette():
-    return random.choice(list(COLOR_PALETTES.values()))
+# Конфигурация страницы
+st.set_page_config(
+    page_title="UnIst Analytics",
+    page_icon="📚",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Функция для получения палитры по имени
-def get_palette_by_name(name):
-    return COLOR_PALETTES.get(name, COLOR_PALETTES["Научная классика"])
+# Загрузка логотипа
+def get_logo_html():
+    if os.path.exists("logo.png"):
+        with open("logo.png", "rb") as f:
+            logo_data = base64.b64encode(f.read()).decode()
+        return f'<img src="data:image/png;base64,{logo_data}" style="height: 60px; margin-right: 10px;">'
+    return ""
 
-# =============================================================================
-# КОНФИГУРАЦИЯ
-# =============================================================================
+# Кастомный CSS с динамической цветовой палитрой
+def get_custom_css():
+    colors = st.session_state.color_palette
+    return f"""
+    <style>
+    /* Main container */
+    .main {{
+        background-color: {colors['background']};
+        color: {colors['text']};
+    }}
+    
+    /* Headers */
+    h1, h2, h3 {{
+        color: {colors['primary']} !important;
+        font-weight: bold !important;
+        border-bottom: 2px solid {colors['secondary']};
+        padding-bottom: 10px;
+    }}
+    
+    /* Buttons */
+    .stButton > button {{
+        background-color: {colors['primary']};
+        color: white;
+        border: none;
+        border-radius: 25px;
+        padding: 10px 25px;
+        font-weight: bold;
+        transition: all 0.3s ease;
+        border: 2px solid {colors['secondary']};
+    }}
+    
+    .stButton > button:hover {{
+        background-color: {colors['secondary']};
+        color: {colors['background']};
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }}
+    
+    /* Input fields */
+    .stTextInput > div > div > input {{
+        border-radius: 20px;
+        border: 2px solid {colors['secondary']};
+        background-color: rgba(255,255,255,0.1);
+        color: {colors['text']};
+        padding: 10px 20px;
+    }}
+    
+    .stTextInput > div > div > input:focus {{
+        border-color: {colors['accent']};
+        box-shadow: 0 0 0 2px {colors['accent']}40;
+    }}
+    
+    /* Dropdown */
+    .stSelectbox > div > div {{
+        background-color: rgba(255,255,255,0.1);
+        border-radius: 20px;
+        border: 2px solid {colors['secondary']};
+    }}
+    
+    /* Progress bar */
+    .stProgress > div > div {{
+        background-color: {colors['accent']};
+    }}
+    
+    /* Metrics */
+    .stMetric {{
+        background: linear-gradient(135deg, {colors['primary']}20, {colors['secondary']}20);
+        border-radius: 15px;
+        padding: 20px;
+        border: 2px solid {colors['accent']};
+        transition: all 0.3s ease;
+    }}
+    
+    .stMetric:hover {{
+        transform: translateY(-5px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+    }}
+    
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 10px;
+        background-color: rgba(255,255,255,0.05);
+        border-radius: 30px;
+        padding: 10px;
+    }}
+    
+    .stTabs [data-baseweb="tab"] {{
+        border-radius: 20px;
+        padding: 10px 25px;
+        background-color: transparent;
+        color: {colors['text']};
+        font-weight: bold;
+        transition: all 0.3s ease;
+    }}
+    
+    .stTabs [aria-selected="true"] {{
+        background-color: {colors['primary']} !important;
+        color: white !important;
+    }}
+    
+    /* Dataframes */
+    .stDataFrame {{
+        border: 2px solid {colors['secondary']};
+        border-radius: 15px;
+        overflow: hidden;
+    }}
+    
+    .stDataFrame th {{
+        background-color: {colors['primary']};
+        color: white;
+        font-weight: bold;
+    }}
+    
+    .stDataFrame td {{
+        background-color: rgba(255,255,255,0.05);
+    }}
+    
+    /* Success/Warning/Info boxes */
+    .stSuccess {{
+        background-color: {colors['success']}20;
+        border-left-color: {colors['success']};
+    }}
+    
+    .stWarning {{
+        background-color: {colors['warning']}20;
+        border-left-color: {colors['warning']};
+    }}
+    
+    .stInfo {{
+        background-color: {colors['info']}20;
+        border-left-color: {colors['info']};
+    }}
+    
+    /* Sidebar */
+    .css-1d391kg {{
+        background-color: {colors['background']}dd;
+    }}
+    
+    /* Animations */
+    @keyframes pulse {{
+        0% {{ transform: scale(1); }}
+        50% {{ transform: scale(1.05); }}
+        100% {{ transform: scale(1); }}
+    }}
+    
+    .pulse {{
+        animation: pulse 2s infinite;
+    }}
+    
+    /* Tooltips */
+    .tooltip {{
+        position: relative;
+        display: inline-block;
+        border-bottom: 1px dotted {colors['accent']};
+    }}
+    
+    .tooltip .tooltiptext {{
+        visibility: hidden;
+        width: 120px;
+        background-color: {colors['background']};
+        color: {colors['text']};
+        text-align: center;
+        border-radius: 6px;
+        padding: 5px;
+        position: absolute;
+        z-index: 1;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -60px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        border: 2px solid {colors['accent']};
+    }}
+    
+    .tooltip:hover .tooltiptext {{
+        visibility: visible;
+        opacity: 1;
+    }}
+    </style>
+    """
+
+# Применяем кастомный CSS
+st.markdown(get_custom_css(), unsafe_allow_html=True)
+
+# Заголовок с логотипом
+logo_html = get_logo_html()
+st.markdown(f"""
+<div style="display: flex; align-items: center; margin-bottom: 20px;">
+    {logo_html}
+    <h1 style="margin: 0;">UnIst Analytics</h1>
+</div>
+<div style="text-align: right; margin-bottom: 20px;">
+    <span class="badge" style="background-color: {st.session_state.color_palette['secondary']}; color: white; padding: 5px 15px; border-radius: 20px;">
+        Advanced Scientific Publication Analyzer
+    </span>
+</div>
+""", unsafe_allow_html=True)
+
+# ─── CONFIGURATION ────────────────────────────────────────────────────────────
 
 CACHE_DIR = "cache"
 LOG_DIR = "logs"
-CROSSREF_EMAIL = "analysis@unist.org"  # Replace with your email
+CROSSREF_EMAIL = "your.email@example.com"  # Replace with your email
 MAX_WORKERS = 7
 RATE_LIMIT_DELAY = 0.7
 MAX_RETRIES = 5
@@ -131,414 +426,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# =============================================================================
-# КЭШИРОВАНИЕ ISSN
-# =============================================================================
+# ─── INITIALIZE SESSION STATE ────────────────────────────────────────────
 
-class ISSNCache:
-    """Cache for ISSN normalization and matching results"""
-    
-    def __init__(self, cache_dir=CACHE_DIR):
-        self.cache_dir = cache_dir
-        self.normalization_cache = {}
-        self.if_matches_cache = {}
-        self.cs_matches_cache = {}
-        
-    def normalize_issn(self, issn_str: str) -> str:
-        """
-        Normalize ISSN to format XXXX-XXXX
-        Examples:
-        24510769 -> 2451-0769
-        5912385 -> 0591-2385 (add leading zero)
-        445401 -> 0044-5401 (add two leading zeros)
-        """
-        if not issn_str or pd.isna(issn_str):
-            return ""
-        
-        # Check cache
-        cache_key = str(issn_str)
-        if cache_key in self.normalization_cache:
-            return self.normalization_cache[cache_key]
-        
-        # Convert to string and remove any non-digit characters
-        issn_clean = re.sub(r'[^0-9]', '', str(issn_str))
-        
-        # Handle different lengths
-        if len(issn_clean) == 8:
-            # Already 8 digits, just add hyphen
-            normalized = f"{issn_clean[:4]}-{issn_clean[4:]}"
-        elif len(issn_clean) == 7:
-            # 7 digits - add leading zero
-            normalized = f"0{issn_clean[:3]}-{issn_clean[3:]}"
-        elif len(issn_clean) == 6:
-            # 6 digits - add two leading zeros
-            normalized = f"00{issn_clean[:2]}-{issn_clean[2:]}"
-        else:
-            # If can't normalize, return original
-            normalized = issn_str
-        
-        self.normalization_cache[cache_key] = normalized
-        return normalized
-    
-    def load_if_data(self) -> pd.DataFrame:
-        """Load and preprocess IF.xlsx"""
-        if not os.path.exists("IF.xlsx"):
-            return pd.DataFrame()
-        
-        df = pd.read_excel("IF.xlsx")
-        
-        # Normalize ISSN columns
-        if 'ISSN' in df.columns:
-            df['ISSN_norm'] = df['ISSN'].apply(self.normalize_issn)
-        if 'eISSN' in df.columns:
-            df['eISSN_norm'] = df['eISSN'].apply(self.normalize_issn)
-        
-        return df
-    
-    def load_cs_data(self) -> pd.DataFrame:
-        """Load and preprocess CS.xlsx"""
-        if not os.path.exists("CS.xlsx"):
-            return pd.DataFrame()
-        
-        df = pd.read_excel("CS.xlsx")
-        
-        # Normalize ISSN columns
-        if 'Print ISSN' in df.columns:
-            df['Print_ISSN_norm'] = df['Print ISSN'].apply(self.normalize_issn)
-        if 'E-ISSN' in df.columns:
-            df['E-ISSN_norm'] = df['E-ISSN'].apply(self.normalize_issn)
-        
-        # Group by ISSN and take highest quartile for each journal
-        result_rows = []
-        
-        # Process by Title to handle multiple entries
-        if 'Title' in df.columns:
-            for title, group in df.groupby('Title'):
-                # Find the highest quartile (1 is highest, 4 is lowest)
-                if 'Quartile' in group.columns:
-                    quartiles = group['Quartile'].dropna()
-                    if not quartiles.empty:
-                        # Convert to numeric, handle string format like 'Q1', 'Q2', etc.
-                        quartile_nums = []
-                        for q in quartiles:
-                            if pd.isna(q):
-                                continue
-                            if isinstance(q, str) and q.startswith('Q'):
-                                try:
-                                    quartile_nums.append(int(q[1:]))
-                                except:
-                                    pass
-                            elif isinstance(q, (int, float)):
-                                quartile_nums.append(int(q))
-                        
-                        if quartile_nums:
-                            best_quartile_num = min(quartile_nums)  # 1 is highest
-                            best_quartile = f"Q{best_quartile_num}"
-                            
-                            # Get the corresponding row
-                            best_row = group[group['Quartile'] == best_quartile].iloc[0] if best_quartile in group['Quartile'].values else group.iloc[0]
-                            result_rows.append(best_row)
-                        else:
-                            result_rows.append(group.iloc[0])
-                    else:
-                        result_rows.append(group.iloc[0])
-                else:
-                    result_rows.append(group.iloc[0])
-        else:
-            # If no Title column, just take unique ISSN combinations with highest quartile
-            seen = set()
-            for _, row in df.iterrows():
-                issn_key = f"{row.get('Print ISSN', '')}_{row.get('E-ISSN', '')}"
-                if issn_key not in seen:
-                    seen.add(issn_key)
-                    result_rows.append(row)
-        
-        result_df = pd.DataFrame(result_rows)
-        return result_df
-    
-    def find_if_match(self, issn: str) -> Tuple[Optional[float], Optional[str]]:
-        """
-        Find IF and Quartile for given ISSN
-        Returns (IF, Quartile)
-        """
-        if not issn:
-            return None, None
-        
-        # Check cache
-        if issn in self.if_matches_cache:
-            return self.if_matches_cache[issn]
-        
-        # Load IF data
-        if_df = self.load_if_data()
-        if if_df.empty:
-            return None, None
-        
-        # Normalize input ISSN
-        issn_norm = self.normalize_issn(issn)
-        
-        # Search in ISSN_norm and eISSN_norm
-        match = None
-        if 'ISSN_norm' in if_df.columns:
-            mask = (if_df['ISSN_norm'] == issn_norm)
-            if mask.any():
-                match = if_df[mask].iloc[0]
-        
-        if match is None and 'eISSN_norm' in if_df.columns:
-            mask = (if_df['eISSN_norm'] == issn_norm)
-            if mask.any():
-                match = if_df[mask].iloc[0]
-        
-        if match is not None:
-            result = (match.get('IF'), match.get('Quartile'))
-        else:
-            result = (None, None)
-        
-        self.if_matches_cache[issn] = result
-        return result
-    
-    def find_cs_match(self, issn: str) -> Tuple[Optional[float], Optional[str]]:
-        """
-        Find CiteScore and Quartile for given ISSN
-        Returns (CiteScore, Quartile)
-        """
-        if not issn:
-            return None, None
-        
-        # Check cache
-        if issn in self.cs_matches_cache:
-            return self.cs_matches_cache[issn]
-        
-        # Load CS data
-        cs_df = self.load_cs_data()
-        if cs_df.empty:
-            return None, None
-        
-        # Normalize input ISSN
-        issn_norm = self.normalize_issn(issn)
-        
-        # Search in Print_ISSN_norm and E-ISSN_norm
-        match = None
-        if 'Print_ISSN_norm' in cs_df.columns:
-            mask = (cs_df['Print_ISSN_norm'] == issn_norm)
-            if mask.any():
-                match = cs_df[mask].iloc[0]
-        
-        if match is None and 'E-ISSN_norm' in cs_df.columns:
-            mask = (cs_df['E-ISSN_norm'] == issn_norm)
-            if mask.any():
-                match = cs_df[mask].iloc[0]
-        
-        if match is not None:
-            result = (match.get('CiteScore'), match.get('Quartile'))
-        else:
-            result = (None, None)
-        
-        self.cs_matches_cache[issn] = result
-        return result
+if 'selected_ror' not in st.session_state:
+    st.session_state.selected_ror = None
+if 'org_search_results' not in st.session_state:
+    st.session_state.org_search_results = None
+if 'analysis_complete' not in st.session_state:
+    st.session_state.analysis_complete = False
+if 'results_df' not in st.session_state:
+    st.session_state.results_df = None
+if 'errors_list' not in st.session_state:
+    st.session_state.errors_list = []
+if 'dois_list' not in st.session_state:
+    st.session_state.dois_list = []
+if 'orig_years_list' not in st.session_state:
+    st.session_state.orig_years_list = []
+if 'exp_years' not in st.session_state:
+    st.session_state.exp_years = []
+if 'if_data' not in st.session_state:
+    st.session_state.if_data = None
+if 'cs_data' not in st.session_state:
+    st.session_state.cs_data = None
+if 'issn_mapping' not in st.session_state:
+    st.session_state.issn_mapping = {}
 
-# Initialize ISSN cache
-issn_cache = ISSNCache()
-
-# =============================================================================
-# СТИЛИЗАЦИЯ STREAMLIT
-# =============================================================================
-
-def set_page_config():
-    st.set_page_config(
-        page_title="UnIst Analytics",
-        page_icon="📊",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-
-def load_custom_css():
-    st.markdown("""
-    <style>
-    /* Main container styling */
-    .main {
-        padding: 0rem 1rem;
-    }
-    
-    /* Title styling */
-    .title-container {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 10px;
-        margin-bottom: 2rem;
-        color: white;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    
-    /* Logo styling */
-    .logo-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        margin-bottom: 1rem;
-    }
-    
-    /* Card styling */
-    .card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        margin-bottom: 1rem;
-        transition: transform 0.3s ease;
-    }
-    
-    .card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-    }
-    
-    /* Metric styling */
-    .metric-container {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        color: white;
-        text-align: center;
-    }
-    
-    .metric-value {
-        font-size: 2rem;
-        font-weight: bold;
-    }
-    
-    .metric-label {
-        font-size: 0.9rem;
-        opacity: 0.9;
-    }
-    
-    /* Button styling */
-    .stButton > button {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 0.5rem 2rem;
-        border-radius: 25px;
-        font-weight: bold;
-        transition: all 0.3s ease;
-    }
-    
-    .stButton > button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-    }
-    
-    /* Progress bar styling */
-    .stProgress > div > div {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-    }
-    
-    /* Tab styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 2rem;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        background: white;
-        border-radius: 25px;
-        padding: 0.5rem 1.5rem;
-        transition: all 0.3s ease;
-    }
-    
-    .stTabs [data-baseweb="tab"]:hover {
-        background: #667eea;
-        color: white;
-    }
-    
-    /* Expander styling */
-    .streamlit-expanderHeader {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 10px;
-    }
-    
-    /* Sidebar styling */
-    .css-1d391kg {
-        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-    }
-    
-    /* Info box styling */
-    .info-box {
-        background: #e3f2fd;
-        padding: 1rem;
-        border-radius: 10px;
-        border-left: 4px solid #2196f3;
-        margin: 1rem 0;
-    }
-    
-    .success-box {
-        background: #d4edda;
-        padding: 1rem;
-        border-radius: 10px;
-        border-left: 4px solid #28a745;
-        margin: 1rem 0;
-    }
-    
-    .warning-box {
-        background: #fff3cd;
-        padding: 1rem;
-        border-radius: 10px;
-        border-left: 4px solid #ffc107;
-        margin: 1rem 0;
-    }
-    
-    .error-box {
-        background: #f8d7da;
-        padding: 1rem;
-        border-radius: 10px;
-        border-left: 4px solid #dc3545;
-        margin: 1rem 0;
-    }
-    
-    /* Animation */
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    .fade-in {
-        animation: fadeIn 0.5s ease-out;
-    }
-    
-    /* Tooltip styling */
-    .tooltip {
-        position: relative;
-        display: inline-block;
-        cursor: help;
-    }
-    
-    .tooltip .tooltiptext {
-        visibility: hidden;
-        width: 200px;
-        background-color: #555;
-        color: #fff;
-        text-align: center;
-        border-radius: 6px;
-        padding: 5px;
-        position: absolute;
-        z-index: 1;
-        bottom: 125%;
-        left: 50%;
-        margin-left: -100px;
-        opacity: 0;
-        transition: opacity 0.3s;
-    }
-    
-    .tooltip:hover .tooltiptext {
-        visibility: visible;
-        opacity: 1;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# =============================================================================
-# ОСНОВНОЙ КЭШ (из оригинального кода)
-# =============================================================================
+# ─── CACHING ───────────────────────────────────────────────────────────
 
 class Cache:
     """Cache for API results"""
@@ -580,9 +493,166 @@ class Cache:
 
 cache = Cache()
 
-# =============================================================================
-# ОРГАНИЗАЦИЯ (из оригинального кода)
-# =============================================================================
+# ─── ISSN NORMALIZATION AND MAPPING ────────────────────────────────────────
+
+@st.cache_data
+def load_if_data():
+    """Load IF.xlsx file with caching"""
+    if os.path.exists("IF.xlsx"):
+        df = pd.read_excel("IF.xlsx")
+        # Normalize ISSN columns
+        if 'ISSN' in df.columns:
+            df['ISSN_norm'] = df['ISSN'].astype(str).apply(normalize_issn)
+        if 'eISSN' in df.columns:
+            df['eISSN_norm'] = df['eISSN'].astype(str).apply(normalize_issn)
+        return df
+    return None
+
+@st.cache_data
+def load_cs_data():
+    """Load CS.xlsx file with caching"""
+    if os.path.exists("CS.xlsx"):
+        df = pd.read_excel("CS.xlsx")
+        # Normalize ISSN columns
+        if 'Print ISSN' in df.columns:
+            df['Print_ISSN_norm'] = df['Print ISSN'].astype(str).apply(normalize_issn)
+        if 'E-ISSN' in df.columns:
+            df['E-ISSN_norm'] = df['E-ISSN'].astype(str).apply(normalize_issn)
+        
+        # Process quartiles - take the highest quartile for each ISSN
+        result_rows = []
+        for _, row in df.iterrows():
+            # Handle multiple quartiles - take the best (smallest number)
+            if pd.notna(row.get('Quartile')):
+                quartile_val = str(row['Quartile']).strip()
+                if quartile_val.isdigit():
+                    quartile_num = int(quartile_val)
+                    # Add to processing list
+                    result_rows.append({
+                        'Title': row.get('Title', ''),
+                        'Print_ISSN_norm': row.get('Print_ISSN_norm', ''),
+                        'E-ISSN_norm': row.get('E-ISSN_norm', ''),
+                        'CiteScore': row.get('CiteScore', ''),
+                        'Quartile_raw': quartile_num
+                    })
+        
+        # Group by ISSN and take min quartile number
+        df_result = pd.DataFrame(result_rows)
+        if not df_result.empty:
+            # Group by Print ISSN
+            grouped_print = df_result.groupby('Print_ISSN_norm').agg({
+                'Title': 'first',
+                'CiteScore': 'first',
+                'Quartile_raw': 'min'
+            }).reset_index()
+            
+            # Group by E-ISSN
+            grouped_e = df_result.groupby('E-ISSN_norm').agg({
+                'Title': 'first',
+                'CiteScore': 'first',
+                'Quartile_raw': 'min'
+            }).reset_index()
+            
+            # Combine
+            combined = pd.concat([grouped_print, grouped_e]).drop_duplicates()
+            combined['Quartile'] = combined['Quartile_raw'].apply(lambda x: f"Q{x}" if pd.notna(x) else "")
+            return combined
+        return df
+    return None
+
+def normalize_issn(issn_str):
+    """
+    Normalize ISSN to format XXXX-XXXX
+    Examples:
+    24510769 -> 2451-0769
+    5912385 -> 0591-2385
+    445401 -> 0044-5401
+    """
+    if pd.isna(issn_str) or not issn_str:
+        return ""
+    
+    # Convert to string and remove any non-digit characters
+    issn_clean = re.sub(r'\D', '', str(issn_str))
+    
+    if not issn_clean:
+        return ""
+    
+    # Pad with leading zeros to make 8 digits
+    issn_padded = issn_clean.zfill(8)
+    
+    # Format as XXXX-XXXX
+    if len(issn_padded) == 8:
+        return f"{issn_padded[:4]}-{issn_padded[4:]}"
+    
+    return ""
+
+@st.cache_data
+def create_issn_mapping(if_df, cs_df):
+    """Create mapping from ISSN to IF and CiteScore data"""
+    mapping = {}
+    
+    # Process IF data
+    if if_df is not None:
+        for _, row in if_df.iterrows():
+            # Process ISSN
+            if pd.notna(row.get('ISSN_norm')):
+                issn = row['ISSN_norm']
+                if issn:
+                    mapping[issn] = {
+                        'if': mapping.get(issn, {}).get('if', row.get('IF', '')),
+                        'if_quartile': mapping.get(issn, {}).get('if_quartile', row.get('Quartile', '')),
+                        'if_name': mapping.get(issn, {}).get('if_name', row.get('Name', ''))
+                    }
+            
+            # Process eISSN
+            if pd.notna(row.get('eISSN_norm')):
+                eissn = row['eISSN_norm']
+                if eissn:
+                    mapping[eissn] = {
+                        'if': mapping.get(eissn, {}).get('if', row.get('IF', '')),
+                        'if_quartile': mapping.get(eissn, {}).get('if_quartile', row.get('Quartile', '')),
+                        'if_name': mapping.get(eissn, {}).get('if_name', row.get('Name', ''))
+                    }
+    
+    # Process CS data
+    if cs_df is not None:
+        for _, row in cs_df.iterrows():
+            # Process Print ISSN
+            if pd.notna(row.get('Print_ISSN_norm')):
+                issn = row['Print_ISSN_norm']
+                if issn:
+                    mapping[issn] = {
+                        **mapping.get(issn, {}),
+                        'cs': mapping.get(issn, {}).get('cs', row.get('CiteScore', '')),
+                        'cs_quartile': mapping.get(issn, {}).get('cs_quartile', row.get('Quartile', '')),
+                        'cs_title': mapping.get(issn, {}).get('cs_title', row.get('Title', ''))
+                    }
+            
+            # Process E-ISSN
+            if pd.notna(row.get('E-ISSN_norm')):
+                eissn = row['E-ISSN_norm']
+                if eissn:
+                    mapping[eissn] = {
+                        **mapping.get(eissn, {}),
+                        'cs': mapping.get(eissn, {}).get('cs', row.get('CiteScore', '')),
+                        'cs_quartile': mapping.get(eissn, {}).get('cs_quartile', row.get('Quartile', '')),
+                        'cs_title': mapping.get(eissn, {}).get('cs_title', row.get('Title', ''))
+                    }
+    
+    return mapping
+
+# Load IF and CS data
+if 'if_df' not in st.session_state:
+    st.session_state.if_df = load_if_data()
+if 'cs_df' not in st.session_state:
+    st.session_state.cs_df = load_cs_data()
+
+# Create ISSN mapping
+if st.session_state.if_df is not None or st.session_state.cs_df is not None:
+    if 'issn_mapping' not in st.session_state or not st.session_state.issn_mapping:
+        st.session_state.issn_mapping = create_issn_mapping(st.session_state.if_df, st.session_state.cs_df)
+
+# ─── ORGANIZATION NAME NORMALIZATION ─────────────────────────────────────
 
 def normalize_org_name(name):
     """
@@ -614,6 +684,8 @@ def normalize_for_fuzzy(name):
     words = [w for w in words if w not in stop_words]
     
     return ' '.join(words)
+
+# ─── ORGANIZATION SEARCH ────────────────────────────────────────
 
 @retry(
     retry=retry_if_exception_type((requests.exceptions.RequestException,)),
@@ -764,9 +836,7 @@ def select_organization(org_input):
     logger.info(f"Found {len(results)} organizations")
     return None, results
 
-# =============================================================================
-# ПАРСИНГ ГОДОВ (из оригинального кода)
-# =============================================================================
+# ─── YEAR PARSING ───────────────────────────────────────────────────────
 
 def parse_year_input(s):
     """Parse year string: 2023, 2022-2024, 2021,2023-2025"""
@@ -801,6 +871,10 @@ def years_to_filter_str(years):
         return ""
     return "publication_year:" + "|".join(map(str, years))
 
+def is_date_in_original_period(dt, original_years_set):
+    """Check if date falls in original period"""
+    return dt is not None and dt.year in original_years_set
+
 def get_late_date(online_str, print_str):
     """Determine latest date from online and print"""
     candidates = []
@@ -819,9 +893,7 @@ def get_late_date(online_str, print_str):
             pass
     return max(candidates) if candidates else None
 
-# =============================================================================
-# СБОР ДАННЫХ (из оригинального кода с добавлением ISSN)
-# =============================================================================
+# ─── DATA COLLECTION ───────────────────────────────────────────────
 
 @retry(
     retry=retry_if_exception_type((requests.exceptions.RequestException,)),
@@ -948,7 +1020,7 @@ def get_crossref_data(doi):
             'orcids': orcids_str,
             'authors_count': authors_count,
             'journal': msg.get('container-title', [''])[0] if msg.get('container-title') else '',
-            'issn': issn_str,  # Added ISSN field
+            'issn': issn_str,
             'volume': msg.get('volume', ''),
             'issue': msg.get('issue', ''),
             'pages': pages,
@@ -1108,7 +1180,7 @@ def fetch_all_dois_openalex(ror, years_expanded):
             if total_expected > 0:
                 progress = min(len(all_dois) / total_expected, 1.0)
                 progress_bar.progress(progress)
-                status_text.text(f"📥 Collected {len(all_dois):,} of {total_expected:,} DOIs")
+                status_text.text(f"📥 Collected {len(all_dois)} DOIs from {total_expected}")
             
             cursor = data["meta"].get("next_cursor")
             if cursor:
@@ -1116,6 +1188,8 @@ def fetch_all_dois_openalex(ror, years_expanded):
             
         except Exception as e:
             logger.error(f"Error at cursor {cursor}: {e}")
+            progress_bar.empty()
+            status_text.empty()
             return all_dois, f"Error: {str(e)}"
     
     progress_bar.empty()
@@ -1126,9 +1200,7 @@ def fetch_all_dois_openalex(ror, years_expanded):
     
     return all_dois, None
 
-# =============================================================================
-# ПАРАЛЛЕЛЬНАЯ ОБРАБОТКА DOI (из оригинального кода)
-# =============================================================================
+# ─── PARALLEL DOI PROCESSING ────────────────────────────────────────────
 
 def process_doi_complete(doi, target_ror=None):
     """
@@ -1166,8 +1238,12 @@ def process_dois_parallel(dois, target_ror=None, max_workers=MAX_WORKERS):
     
     logger.info(f"Starting processing of {len(dois)} DOIs, max attempts: {max_attempts}")
     
+    # Setup progress tracking
     progress_bar = st.progress(0)
     status_text = st.empty()
+    
+    total_processed = 0
+    total_dois = len(dois)
     
     while remaining_dois and attempt <= max_attempts:
         logger.info(f"Attempt {attempt}/{max_attempts}, remaining DOIs: {len(remaining_dois)}")
@@ -1180,8 +1256,6 @@ def process_dois_parallel(dois, target_ror=None, max_workers=MAX_WORKERS):
                             for doi in remaining_dois}
             
             completed = 0
-            total = len(remaining_dois)
-            
             for future in concurrent.futures.as_completed(future_to_doi):
                 doi = future_to_doi[future]
                 try:
@@ -1196,8 +1270,12 @@ def process_dois_parallel(dois, target_ror=None, max_workers=MAX_WORKERS):
                     logger.error(f"Exception processing {doi}: {e}")
                 
                 completed += 1
-                progress_bar.progress(completed / total)
-                status_text.text(f"🔍 Processing attempt {attempt}: {completed}/{total}")
+                total_processed += 1
+                
+                # Update progress
+                progress = total_processed / total_dois
+                progress_bar.progress(progress)
+                status_text.text(f"🔍 Processing DOIs: {total_processed}/{total_dois} (Attempt {attempt})")
         
         results.extend(current_results)
         
@@ -1218,9 +1296,7 @@ def process_dois_parallel(dois, target_ror=None, max_workers=MAX_WORKERS):
     
     return results, errors
 
-# =============================================================================
-# АНАЛИТИЧЕСКИЕ ФУНКЦИИ (из оригинального кода)
-# =============================================================================
+# ─── ANALYSIS FUNCTIONS ────────────────────────────────────────
 
 def extract_authors(authors_str):
     """Extract author names from semicolon-separated string"""
@@ -1239,12 +1315,6 @@ def extract_affiliations(affiliations_str):
     if not affiliations_str:
         return []
     return [a.strip() for a in affiliations_str.split(';') if a.strip()]
-
-def extract_issns(issn_str):
-    """Extract ISSNs from semicolon-separated string"""
-    if not issn_str or pd.isna(issn_str):
-        return []
-    return [issn.strip() for issn in str(issn_str).split(';') if issn.strip()]
 
 def create_affiliation_network(df, period_only=True):
     """
@@ -1395,499 +1465,72 @@ def generate_oa_stats(df, period_only=True):
         'oa_by_year': data.groupby('late_year')['is_oa'].mean() * 100
     }
 
-# =============================================================================
-# ФУНКЦИИ ДЛЯ ГРАФИКОВ
-# =============================================================================
-
-def create_publication_timeline(df, palette):
-    """Create publication timeline plot"""
-    if df.empty or 'late_year' not in df.columns:
-        return None
+def add_issn_metrics_to_df(df, issn_mapping):
+    """Add IF and CiteScore metrics to dataframe based on ISSN"""
     
-    year_counts = df['late_year'].value_counts().sort_index()
-    
-    fig, ax = plt.subplots(figsize=(12, 6))
-    ax.bar(year_counts.index, year_counts.values, color=palette[0], alpha=0.8, edgecolor='black', linewidth=0.5)
-    ax.set_xlabel('Year')
-    ax.set_ylabel('Number of Publications')
-    ax.set_title('Publication Timeline')
-    ax.set_xticks(year_counts.index)
-    ax.set_xticklabels(year_counts.index, rotation=45)
-    
-    # Add value labels on bars
-    for i, (year, count) in enumerate(year_counts.items()):
-        ax.text(year, count + 0.5, str(count), ha='center', va='bottom', fontsize=9)
-    
-    plt.tight_layout()
-    return fig
-
-def create_citation_distribution(df, palette):
-    """Create citation distribution plot"""
-    if df.empty:
-        return None
-    
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-    
-    # Crossref citations
-    cr_data = df['citations_cr'].dropna()
-    if not cr_data.empty:
-        axes[0].hist(cr_data, bins=30, color=palette[1], alpha=0.7, edgecolor='black', linewidth=0.5)
-        axes[0].axvline(cr_data.mean(), color='red', linestyle='--', linewidth=1.5, label=f'Mean: {cr_data.mean():.1f}')
-        axes[0].axvline(cr_data.median(), color='blue', linestyle='--', linewidth=1.5, label=f'Median: {cr_data.median():.1f}')
-        axes[0].set_xlabel('Citations (Crossref)')
-        axes[0].set_ylabel('Frequency')
-        axes[0].set_title('Crossref Citation Distribution')
-        axes[0].legend()
-        axes[0].grid(True, alpha=0.3)
-    
-    # OpenAlex citations
-    oa_data = df['citations_oa'].dropna()
-    if not oa_data.empty:
-        axes[1].hist(oa_data, bins=30, color=palette[2], alpha=0.7, edgecolor='black', linewidth=0.5)
-        axes[1].axvline(oa_data.mean(), color='red', linestyle='--', linewidth=1.5, label=f'Mean: {oa_data.mean():.1f}')
-        axes[1].axvline(oa_data.median(), color='blue', linestyle='--', linewidth=1.5, label=f'Median: {oa_data.median():.1f}')
-        axes[1].set_xlabel('Citations (OpenAlex)')
-        axes[1].set_ylabel('Frequency')
-        axes[1].set_title('OpenAlex Citation Distribution')
-        axes[1].legend()
-        axes[1].grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    return fig
-
-def create_top_journals_plot(df, palette, n=10):
-    """Create top journals bar plot"""
-    if df.empty or 'journal' not in df.columns:
-        return None
-    
-    journal_counts = df['journal'].value_counts().head(n)
-    
-    fig, ax = plt.subplots(figsize=(12, 8))
-    bars = ax.barh(range(len(journal_counts)), journal_counts.values, color=palette[3], alpha=0.8, edgecolor='black', linewidth=0.5)
-    ax.set_yticks(range(len(journal_counts)))
-    ax.set_yticklabels([str(j)[:40] + '...' if len(str(j)) > 40 else str(j) for j in journal_counts.index])
-    ax.set_xlabel('Number of Publications')
-    ax.set_title(f'Top {n} Journals')
-    ax.invert_yaxis()
-    
-    # Add value labels
-    for i, (bar, count) in enumerate(zip(bars, journal_counts.values)):
-        ax.text(count + 0.5, bar.get_y() + bar.get_height()/2, str(count), va='center', fontsize=9)
-    
-    plt.tight_layout()
-    return fig
-
-def create_country_map(df, palette):
-    """Create country frequency map"""
-    if df.empty or 'countries' not in df.columns:
-        return None
-    
-    country_counter = generate_country_frequency(df)
-    
-    if not country_counter:
-        return None
-    
-    # Create DataFrame for plotly
-    country_df = pd.DataFrame([
-        {'country': country, 'papers': count}
-        for country, count in country_counter.most_common(20)
-    ])
-    
-    fig = px.choropleth(
-        country_df,
-        locations='country',
-        locationmode='ISO-3',
-        color='papers',
-        hover_name='country',
-        color_continuous_scale=px.colors.sequential.Plasma,
-        title='Geographic Distribution of Publications'
-    )
-    
-    fig.update_layout(
-        geo=dict(
-            showframe=True,
-            showcoastlines=True,
-            projection_type='natural earth'
-        ),
-        width=1000,
-        height=600
-    )
-    
-    return fig
-
-def create_oa_trend(df, palette):
-    """Create Open Access trend plot"""
-    if df.empty or 'late_year' not in df.columns or 'is_oa' not in df.columns:
-        return None
-    
-    oa_by_year = df.groupby('late_year')['is_oa'].agg(['count', 'sum'])
-    oa_by_year['percentage'] = (oa_by_year['sum'] / oa_by_year['count']) * 100
-    
-    fig, ax = plt.subplots(figsize=(12, 6))
-    
-    ax.plot(oa_by_year.index, oa_by_year['percentage'], marker='o', linewidth=2, color=palette[4], markersize=8)
-    ax.fill_between(oa_by_year.index, oa_by_year['percentage'], alpha=0.3, color=palette[4])
-    
-    ax.set_xlabel('Year')
-    ax.set_ylabel('Open Access Percentage (%)')
-    ax.set_title('Open Access Trend Over Time')
-    ax.set_ylim(0, 100)
-    ax.set_xticks(oa_by_year.index)
-    ax.set_xticklabels(oa_by_year.index, rotation=45)
-    ax.grid(True, alpha=0.3)
-    
-    # Add value labels
-    for year, pct in oa_by_year['percentage'].items():
-        ax.text(year, pct + 2, f'{pct:.1f}%', ha='center', va='bottom', fontsize=9)
-    
-    plt.tight_layout()
-    return fig
-
-def create_affiliation_network_plot(df, palette):
-    """Create affiliation network visualization"""
-    G_aff, aff_stats = create_affiliation_network(df)
-    
-    if len(G_aff.nodes()) == 0:
-        return None
-    
-    # Filter to top nodes for readability
-    node_degrees = dict(G_aff.degree())
-    top_nodes = sorted(node_degrees, key=node_degrees.get, reverse=True)[:15]
-    G_aff_sub = G_aff.subgraph(top_nodes)
-    
-    pos = nx.spring_layout(G_aff_sub, k=2, iterations=50)
-    
-    fig, ax = plt.subplots(figsize=(14, 10))
-    
-    # Draw edges
-    edge_weights = [G_aff_sub[u][v]['weight'] for u, v in G_aff_sub.edges()]
-    nx.draw_networkx_edges(G_aff_sub, pos, width=edge_weights, alpha=0.5, edge_color='gray', ax=ax)
-    
-    # Draw nodes
-    node_sizes = [G_aff_sub.nodes[node]['papers'] * 100 for node in G_aff_sub.nodes()]
-    node_colors = [palette[i % len(palette)] for i in range(len(G_aff_sub.nodes()))]
-    
-    nx.draw_networkx_nodes(G_aff_sub, pos, node_size=node_sizes, node_color=node_colors, alpha=0.8, ax=ax)
-    
-    # Draw labels
-    labels = {node: node[:20] + '...' if len(node) > 20 else node for node in G_aff_sub.nodes()}
-    nx.draw_networkx_labels(G_aff_sub, pos, labels, font_size=8, ax=ax)
-    
-    ax.set_title('Affiliation Collaboration Network (Top 15)')
-    ax.axis('off')
-    
-    plt.tight_layout()
-    return fig
-
-def create_country_network_plot(df, palette):
-    """Create country network visualization"""
-    G_country, country_stats = create_country_network(df)
-    
-    if len(G_country.nodes()) == 0:
-        return None
-    
-    pos = nx.spring_layout(G_country, k=1, iterations=50)
-    
-    fig, ax = plt.subplots(figsize=(12, 8))
-    
-    # Draw edges
-    edge_weights = [G_country[u][v]['weight'] for u, v in G_country.edges()]
-    nx.draw_networkx_edges(G_country, pos, width=edge_weights, alpha=0.5, edge_color='gray', ax=ax)
-    
-    # Draw nodes
-    node_sizes = [G_country.nodes[node]['papers'] * 200 for node in G_country.nodes()]
-    node_colors = [palette[i % len(palette)] for i in range(len(G_country.nodes()))]
-    
-    nx.draw_networkx_nodes(G_country, pos, node_size=node_sizes, node_color=node_colors, alpha=0.8, ax=ax)
-    
-    # Draw labels
-    nx.draw_networkx_labels(G_country, pos, font_size=10, ax=ax)
-    
-    ax.set_title('Country Collaboration Network')
-    ax.axis('off')
-    
-    plt.tight_layout()
-    return fig
-
-def create_author_collaboration_plot(df, palette, n=20):
-    """Create author collaboration heatmap"""
-    if df.empty or 'authors' not in df.columns:
-        return None
-    
-    # Get top authors
-    author_counter = generate_author_frequency(df)
-    top_authors = [author for author, _ in author_counter.most_common(n)]
-    
-    # Create co-authorship matrix
-    coauthor_matrix = pd.DataFrame(0, index=top_authors, columns=top_authors)
-    
-    for authors_str in df['authors'].dropna():
-        authors = extract_authors(authors_str)
-        authors_in_top = [a for a in authors if a in top_authors]
+    def get_metrics(issn_str):
+        if pd.isna(issn_str) or not issn_str:
+            return pd.Series({
+                'IF': '',
+                'IF_Q': '',
+                'CS': '',
+                'CS_Q': ''
+            })
         
-        for i in range(len(authors_in_top)):
-            for j in range(i+1, len(authors_in_top)):
-                coauthor_matrix.loc[authors_in_top[i], authors_in_top[j]] += 1
-                coauthor_matrix.loc[authors_in_top[j], authors_in_top[i]] += 1
-    
-    if coauthor_matrix.sum().sum() == 0:
-        return None
-    
-    fig, ax = plt.subplots(figsize=(14, 12))
-    
-    im = ax.imshow(coauthor_matrix, cmap='YlOrRd', aspect='auto')
-    
-    ax.set_xticks(range(len(top_authors)))
-    ax.set_yticks(range(len(top_authors)))
-    ax.set_xticklabels([a[:20] + '...' if len(a) > 20 else a for a in top_authors], rotation=90, fontsize=8)
-    ax.set_yticklabels([a[:20] + '...' if len(a) > 20 else a for a in top_authors], fontsize=8)
-    
-    plt.colorbar(im, ax=ax, label='Number of Collaborations')
-    ax.set_title(f'Top {n} Authors Collaboration Matrix')
-    
-    plt.tight_layout()
-    return fig
-
-def create_references_vs_citations_plot(df, palette):
-    """Create references vs citations scatter plot"""
-    if df.empty or 'references_count' not in df.columns or 'citations_cr' not in df.columns:
-        return None
-    
-    fig, ax = plt.subplots(figsize=(10, 8))
-    
-    scatter = ax.scatter(
-        df['references_count'], 
-        df['citations_cr'],
-        c=df['citations_oa'] if 'citations_oa' in df.columns else df['citations_cr'],
-        s=df['authors_count'] * 20 if 'authors_count' in df.columns else 50,
-        alpha=0.6,
-        cmap='viridis',
-        edgecolor='black',
-        linewidth=0.5
-    )
-    
-    ax.set_xlabel('Number of References')
-    ax.set_ylabel('Citations (Crossref)')
-    ax.set_title('References vs Citations')
-    
-    # Add trend line
-    if len(df) > 1:
-        z = np.polyfit(df['references_count'].fillna(0), df['citations_cr'].fillna(0), 1)
-        p = np.poly1d(z)
-        ax.plot(df['references_count'].sort_values(), p(df['references_count'].sort_values()), 
-                "r--", alpha=0.8, label=f'Trend (slope: {z[0]:.3f})')
-        ax.legend()
-    
-    plt.colorbar(scatter, ax=ax, label='OpenAlex Citations')
-    plt.tight_layout()
-    return fig
-
-def create_publication_types_plot(df, palette):
-    """Create publication types pie chart"""
-    if df.empty or 'type' not in df.columns:
-        return None
-    
-    type_counts = df['type'].value_counts()
-    
-    fig, ax = plt.subplots(figsize=(10, 8))
-    
-    wedges, texts, autotexts = ax.pie(
-        type_counts.values,
-        labels=type_counts.index,
-        autopct='%1.1f%%',
-        colors=palette[:len(type_counts)],
-        startangle=90,
-        wedgeprops={'edgecolor': 'black', 'linewidth': 0.5}
-    )
-    
-    # Make percentage text bold and white
-    for autotext in autotexts:
-        autotext.set_color('white')
-        autotext.set_fontweight('bold')
-    
-    ax.set_title('Publication Types Distribution')
-    ax.axis('equal')
-    
-    plt.tight_layout()
-    return fig
-
-def create_language_distribution_plot(df, palette):
-    """Create language distribution bar plot"""
-    if df.empty or 'language' not in df.columns:
-        return None
-    
-    lang_counts = df['language'].value_counts().head(10)
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    bars = ax.bar(range(len(lang_counts)), lang_counts.values, color=palette[5], alpha=0.8, edgecolor='black', linewidth=0.5)
-    ax.set_xticks(range(len(lang_counts)))
-    ax.set_xticklabels(lang_counts.index)
-    ax.set_xlabel('Language')
-    ax.set_ylabel('Number of Publications')
-    ax.set_title('Top 10 Languages')
-    
-    # Add value labels
-    for i, (bar, count) in enumerate(zip(bars, lang_counts.values)):
-        ax.text(i, count + 0.5, str(count), ha='center', va='bottom', fontsize=9)
-    
-    plt.tight_layout()
-    return fig
-
-def create_funding_distribution_plot(df, palette):
-    """Create funding distribution plot"""
-    if df.empty or 'funding' not in df.columns:
-        return None
-    
-    has_funding = df['funding'].notna() & (df['funding'] != '')
-    funded_count = has_funding.sum()
-    unfunded_count = len(df) - funded_count
-    
-    fig, ax = plt.subplots(figsize=(8, 8))
-    
-    wedges, texts, autotexts = ax.pie(
-        [funded_count, unfunded_count],
-        labels=['Funded', 'Unfunded'],
-        autopct='%1.1f%%',
-        colors=[palette[6], palette[7]],
-        startangle=90,
-        wedgeprops={'edgecolor': 'black', 'linewidth': 0.5}
-    )
-    
-    for autotext in autotexts:
-        autotext.set_color('white')
-        autotext.set_fontweight('bold')
-    
-    ax.set_title('Funding Distribution')
-    ax.axis('equal')
-    
-    plt.tight_layout()
-    return fig
-
-def create_quartile_distribution_plot(df, palette):
-    """Create quartile distribution plot for IF and CS"""
-    if df.empty:
-        return None
-    
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-    
-    # IF Quartiles
-    if 'IF_Quartile' in df.columns:
-        if_q_counts = df['IF_Quartile'].dropna().value_counts()
-        if not if_q_counts.empty:
-            axes[0].bar(if_q_counts.index, if_q_counts.values, color=palette[8], alpha=0.8, edgecolor='black', linewidth=0.5)
-            axes[0].set_xlabel('Quartile')
-            axes[0].set_ylabel('Number of Publications')
-            axes[0].set_title('Impact Factor Quartile Distribution')
-            axes[0].grid(True, alpha=0.3, axis='y')
-            
-            # Add value labels
-            for i, (q, count) in enumerate(if_q_counts.items()):
-                axes[0].text(i, count + 0.5, str(count), ha='center', va='bottom', fontsize=9)
-    
-    # CS Quartiles
-    if 'CS_Quartile' in df.columns:
-        cs_q_counts = df['CS_Quartile'].dropna().value_counts()
-        if not cs_q_counts.empty:
-            axes[1].bar(cs_q_counts.index, cs_q_counts.values, color=palette[9], alpha=0.8, edgecolor='black', linewidth=0.5)
-            axes[1].set_xlabel('Quartile')
-            axes[1].set_ylabel('Number of Publications')
-            axes[1].set_title('CiteScore Quartile Distribution')
-            axes[1].grid(True, alpha=0.3, axis='y')
-            
-            # Add value labels
-            for i, (q, count) in enumerate(cs_q_counts.items()):
-                axes[1].text(i, count + 0.5, str(count), ha='center', va='bottom', fontsize=9)
-    
-    plt.tight_layout()
-    return fig
-
-# =============================================================================
-# СОЗДАНИЕ DATAFRAME (из оригинального кода с добавлением IF и CS)
-# =============================================================================
-
-def create_results_dataframe(results, target_years_set):
-    """Create final DataFrame with results and add IF/CS data"""
-    
-    df = pd.DataFrame(results)
-    
-    if df.empty:
-        return df
-    
-    df['belongs_to_period'] = df.apply(
-        lambda row: row['late_dt'] is not None and row['late_dt'].year in target_years_set 
-        if pd.notna(row['late_dt']) else False, 
-        axis=1
-    )
-    
-    if 'late_dt' in df.columns:
-        df['late_date'] = df['late_dt'].apply(
-            lambda x: x.strftime("%Y-%m-%d") if pd.notna(x) else None
-        )
-        df = df.drop('late_dt', axis=1)
-    
-    # Add IF and CS data based on ISSN
-    if 'issn' in df.columns:
-        # Initialize columns
-        df['IF'] = None
-        df['IF_Quartile'] = None
-        df['CS'] = None
-        df['CS_Quartile'] = None
+        # Split multiple ISSNs
+        issns = [i.strip() for i in str(issn_str).split(';')]
         
-        # Process each row
-        for idx, row in df.iterrows():
-            issn_str = row.get('issn', '')
-            if issn_str and pd.notna(issn_str):
-                issns = extract_issns(issn_str)
+        if_vals = []
+        if_q_vals = []
+        cs_vals = []
+        cs_q_vals = []
+        
+        for issn in issns:
+            # Normalize ISSN for lookup
+            issn_norm = normalize_issn(issn)
+            if issn_norm in issn_mapping:
+                mapping = issn_mapping[issn_norm]
                 
-                # Try each ISSN until we find a match
-                for issn in issns:
-                    # Check IF
-                    if pd.isna(df.at[idx, 'IF']):
-                        if_val, if_q = issn_cache.find_if_match(issn)
-                        if if_val is not None and pd.notna(if_val):
-                            df.at[idx, 'IF'] = if_val
-                            df.at[idx, 'IF_Quartile'] = if_q
-                            break  # Stop if we found a match
-                    
-                    # Check CS
-                    if pd.isna(df.at[idx, 'CS']):
-                        cs_val, cs_q = issn_cache.find_cs_match(issn)
-                        if cs_val is not None and pd.notna(cs_val):
-                            df.at[idx, 'CS'] = cs_val
-                            df.at[idx, 'CS_Quartile'] = cs_q
-                            # Don't break here, continue to check IF if needed
+                if 'if' in mapping and mapping['if']:
+                    if_vals.append(str(mapping['if']))
+                if 'if_quartile' in mapping and mapping['if_quartile']:
+                    if_q_vals.append(str(mapping['if_quartile']))
+                if 'cs' in mapping and mapping['cs']:
+                    cs_vals.append(str(mapping['cs']))
+                if 'cs_quartile' in mapping and mapping['cs_quartile']:
+                    cs_q_vals.append(str(mapping['cs_quartile']))
+        
+        # Take first non-empty value
+        if_val = if_vals[0] if if_vals else ''
+        if_q_val = if_q_vals[0] if if_q_vals else ''
+        cs_val = cs_vals[0] if cs_vals else ''
+        cs_q_val = cs_q_vals[0] if cs_q_vals else ''
+        
+        return pd.Series({
+            'IF': if_val,
+            'IF_Q': if_q_val,
+            'CS': cs_val,
+            'CS_Q': cs_q_val
+        })
     
-    column_order = [
-        'doi', 'title', 'belongs_to_period', 'late_date', 'late_year',
-        'print_date', 'online_date', 'publication_year', 'publication_date',
-        'authors', 'authors_count', 'orcids',
-        'affiliations', 'countries', 'journal', 'issn', 'publisher', 'type',
-        'volume', 'issue', 'pages',
-        'is_oa', 'funding',
-        'references_count', 'citations_cr', 'citations_oa',
-        'IF', 'IF_Quartile', 'CS', 'CS_Quartile',
-        'openalex_id', 'language', 'status'
-    ]
-    
-    existing_cols = [col for col in column_order if col in df.columns]
-    df = df[existing_cols]
+    # Apply the function to create new columns
+    metrics_df = df['issn'].apply(get_metrics)
+    df = pd.concat([df, metrics_df], axis=1)
     
     return df
 
-# =============================================================================
-# ЭКСПОРТ В EXCEL (из оригинального кода)
-# =============================================================================
+# ─── EXCEL EXPORT ────────────────────────────────────────
 
-def export_to_excel(df, results, errors, selected_ror, orig_years_list, exp_years):
+def export_to_excel(df, results, errors, selected_ror, orig_years_list, exp_years, 
+                    filename=None):
     """
     Export all data and analytics to Excel with multiple sheets
     """
-    filename = f"analysis_ror_{selected_ror}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    if filename is None:
+        filename = f"analysis_ror_{selected_ror}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     
     # Create Excel writer with xlsxwriter
-    output = io.BytesIO()
-    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    writer = pd.ExcelWriter(filename, engine='xlsxwriter')
     workbook = writer.book
     
     # Add formats
@@ -2010,61 +1653,39 @@ def export_to_excel(df, results, errors, selected_ror, orig_years_list, exp_year
     })
     oa_df.to_excel(writer, sheet_name='OA Statistics', index=False)
     
-    # ===== SHEET 10: IF Statistics =====
-    if 'IF' in df.columns and 'IF_Quartile' in df.columns:
-        if_data = df[['IF', 'IF_Quartile']].dropna(subset=['IF'])
-        if not if_data.empty:
-            if_stats = pd.DataFrame({
-                'Metric': [
-                    'Journals with IF',
-                    'Average IF',
-                    'Median IF',
-                    'Max IF',
-                    'Q1 Journals',
-                    'Q2 Journals',
-                    'Q3 Journals',
-                    'Q4 Journals'
-                ],
-                'Value': [
-                    len(if_data),
-                    if_data['IF'].mean(),
-                    if_data['IF'].median(),
-                    if_data['IF'].max(),
-                    (if_data['IF_Quartile'] == 'Q1').sum(),
-                    (if_data['IF_Quartile'] == 'Q2').sum(),
-                    (if_data['IF_Quartile'] == 'Q3').sum(),
-                    (if_data['IF_Quartile'] == 'Q4').sum()
-                ]
-            })
-            if_stats.to_excel(writer, sheet_name='IF Statistics', index=False)
+    # ===== SHEET 10: Network Statistics (Affiliations) =====
+    G_aff, aff_stats = create_affiliation_network(df)
     
-    # ===== SHEET 11: CS Statistics =====
-    if 'CS' in df.columns and 'CS_Quartile' in df.columns:
-        cs_data = df[['CS', 'CS_Quartile']].dropna(subset=['CS'])
-        if not cs_data.empty:
-            cs_stats = pd.DataFrame({
-                'Metric': [
-                    'Journals with CiteScore',
-                    'Average CiteScore',
-                    'Median CiteScore',
-                    'Max CiteScore',
-                    'Q1 Journals',
-                    'Q2 Journals',
-                    'Q3 Journals',
-                    'Q4 Journals'
-                ],
-                'Value': [
-                    len(cs_data),
-                    cs_data['CS'].mean(),
-                    cs_data['CS'].median(),
-                    cs_data['CS'].max(),
-                    (cs_data['CS_Quartile'] == 'Q1').sum(),
-                    (cs_data['CS_Quartile'] == 'Q2').sum(),
-                    (cs_data['CS_Quartile'] == 'Q3').sum(),
-                    (cs_data['CS_Quartile'] == 'Q4').sum()
-                ]
-            })
-            cs_stats.to_excel(writer, sheet_name='CS Statistics', index=False)
+    aff_network_data = []
+    for aff, stats in aff_stats.items():
+        aff_network_data.append({
+            'Affiliation': aff,
+            'Papers': stats['papers'],
+            'Countries': ', '.join(stats['countries']),
+            'Degree': G_aff.degree(aff) if aff in G_aff else 0
+        })
+    
+    aff_network_df = pd.DataFrame(aff_network_data)
+    if not aff_network_df.empty:
+        aff_network_df = aff_network_df.sort_values('Papers', ascending=False)
+        aff_network_df.to_excel(writer, sheet_name='Affiliation Network', index=False)
+    
+    # ===== SHEET 11: Network Statistics (Countries) =====
+    G_country, country_stats = create_country_network(df)
+    
+    country_network_data = []
+    for country, stats in country_stats.items():
+        country_network_data.append({
+            'Country': country,
+            'Papers': stats['papers'],
+            'Affiliations': len(stats['affiliations']),
+            'Collaboration Partners': G_country.degree(country) if country in G_country else 0
+        })
+    
+    country_network_df = pd.DataFrame(country_network_data)
+    if not country_network_df.empty:
+        country_network_df = country_network_df.sort_values('Papers', ascending=False)
+        country_network_df.to_excel(writer, sheet_name='Country Network', index=False)
     
     # ===== SHEET 12: Errors =====
     if errors:
@@ -2100,586 +1721,833 @@ def export_to_excel(df, results, errors, selected_ror, orig_years_list, exp_year
     })
     metadata.to_excel(writer, sheet_name='Metadata', index=False)
     
-    # Auto-adjust column widths
+    # Auto-adjust column widths for all sheets
     for sheet_name in writer.sheets:
         worksheet = writer.sheets[sheet_name]
         worksheet.set_column(0, 100, 20)
     
+    # Save the file
     writer.close()
-    output.seek(0)
     
-    return output, filename
+    return filename
 
-# =============================================================================
-# ОСНОВНОЕ ПРИЛОЖЕНИЕ STREAMLIT
-# =============================================================================
+def create_enhanced_visualizations(df):
+    """Create enhanced scientific visualizations"""
+    colors = st.session_state.color_palette
+    
+    # Filter data for period
+    belong = df[df['belongs_to_period'] == True].copy()
+    
+    if belong.empty:
+        return None
+    
+    figs = {}
+    
+    # 1. Publications over time
+    fig1, ax1 = plt.subplots(figsize=(10, 6))
+    year_counts = belong['late_year'].value_counts().sort_index()
+    ax1.bar(year_counts.index, year_counts.values, 
+            color=colors['primary'], edgecolor='black', linewidth=1)
+    ax1.set_xlabel('Year', fontweight='bold')
+    ax1.set_ylabel('Number of Publications', fontweight='bold')
+    ax1.set_title('Publication Timeline', fontweight='bold', pad=20)
+    ax1.grid(True, alpha=0.3, linestyle='--')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    figs['timeline'] = fig1
+    
+    # 2. Top journals
+    fig2, ax2 = plt.subplots(figsize=(10, 6))
+    journal_counts = belong['journal'].value_counts().head(10)
+    ax2.barh(range(len(journal_counts)), journal_counts.values, 
+             color=colors['secondary'], edgecolor='black', linewidth=1)
+    ax2.set_yticks(range(len(journal_counts)))
+    ax2.set_yticklabels([j[:30] + '...' if len(j) > 30 else j for j in journal_counts.index])
+    ax2.set_xlabel('Number of Publications', fontweight='bold')
+    ax2.set_title('Top 10 Journals', fontweight='bold', pad=20)
+    ax2.grid(True, alpha=0.3, linestyle='--', axis='x')
+    plt.tight_layout()
+    figs['journals'] = fig2
+    
+    # 3. Citation distribution
+    fig3, (ax3, ax4) = plt.subplots(1, 2, figsize=(12, 5))
+    
+    # Crossref citations
+    cr_citations = belong['citations_cr'].dropna()
+    if not cr_citations.empty:
+        ax3.hist(cr_citations, bins=30, color=colors['primary'], 
+                edgecolor='black', alpha=0.7)
+        ax3.set_xlabel('Citations (Crossref)', fontweight='bold')
+        ax3.set_ylabel('Frequency', fontweight='bold')
+        ax3.set_title('Crossref Citation Distribution', fontweight='bold')
+        ax3.grid(True, alpha=0.3, linestyle='--')
+    
+    # OpenAlex citations
+    oa_citations = belong['citations_oa'].dropna()
+    if not oa_citations.empty:
+        ax4.hist(oa_citations, bins=30, color=colors['secondary'], 
+                edgecolor='black', alpha=0.7)
+        ax4.set_xlabel('Citations (OpenAlex)', fontweight='bold')
+        ax4.set_ylabel('Frequency', fontweight='bold')
+        ax4.set_title('OpenAlex Citation Distribution', fontweight='bold')
+        ax4.grid(True, alpha=0.3, linestyle='--')
+    
+    plt.tight_layout()
+    figs['citations'] = fig3
+    
+    # 4. Country collaboration heatmap
+    country_counter = generate_country_frequency(df)
+    if len(country_counter) > 1:
+        fig4, ax5 = plt.subplots(figsize=(10, 8))
+        
+        # Create country co-occurrence matrix
+        countries_list = []
+        for countries_str in belong['countries'].dropna():
+            countries = extract_countries(countries_str)
+            if len(countries) > 1:
+                countries_list.extend([(c1, c2) for c1 in countries for c2 in countries if c1 < c2])
+        
+        if countries_list:
+            # Create matrix
+            top_countries = [c for c, _ in country_counter.most_common(10)]
+            matrix = np.zeros((len(top_countries), len(top_countries)))
+            
+            for c1, c2 in countries_list:
+                if c1 in top_countries and c2 in top_countries:
+                    i, j = top_countries.index(c1), top_countries.index(c2)
+                    matrix[i, j] += 1
+                    matrix[j, i] += 1
+            
+            im = ax5.imshow(matrix, cmap='YlOrRd', aspect='auto')
+            ax5.set_xticks(range(len(top_countries)))
+            ax5.set_yticks(range(len(top_countries)))
+            ax5.set_xticklabels(top_countries, rotation=45, ha='right')
+            ax5.set_yticklabels(top_countries)
+            ax5.set_title('Country Collaboration Heatmap', fontweight='bold', pad=20)
+            plt.colorbar(im, ax=ax5, label='Collaboration Frequency')
+            plt.tight_layout()
+            figs['countries'] = fig4
+    
+    # 5. Open Access trend
+    if 'late_year' in belong.columns and 'is_oa' in belong.columns:
+        fig5, ax6 = plt.subplots(figsize=(10, 6))
+        oa_by_year = belong.groupby('late_year')['is_oa'].mean() * 100
+        ax6.plot(oa_by_year.index, oa_by_year.values, marker='o', 
+                color=colors['accent'], linewidth=2, markersize=8)
+        ax6.fill_between(oa_by_year.index, oa_by_year.values, alpha=0.3, color=colors['accent'])
+        ax6.set_xlabel('Year', fontweight='bold')
+        ax6.set_ylabel('Open Access (%)', fontweight='bold')
+        ax6.set_title('Open Access Trend Over Time', fontweight='bold', pad=20)
+        ax6.grid(True, alpha=0.3, linestyle='--')
+        ax6.set_ylim(0, 100)
+        plt.tight_layout()
+        figs['oa_trend'] = fig5
+    
+    return figs
 
-def main():
-    # Set page configuration
-    set_page_config()
+def create_results_dataframe(results, target_years_set):
+    """Create final DataFrame with results"""
     
-    # Load custom CSS
-    load_custom_css()
+    df = pd.DataFrame(results)
     
-    # Initialize session state
-    if 'selected_ror' not in st.session_state:
-        st.session_state.selected_ror = None
-    if 'org_search_results' not in st.session_state:
-        st.session_state.org_search_results = None
-    if 'results_df' not in st.session_state:
-        st.session_state.results_df = None
-    if 'results_list' not in st.session_state:
-        st.session_state.results_list = None
-    if 'errors_list' not in st.session_state:
-        st.session_state.errors_list = None
-    if 'dois_list' not in st.session_state:
-        st.session_state.dois_list = None
-    if 'orig_years' not in st.session_state:
-        st.session_state.orig_years = None
-    if 'exp_years' not in st.session_state:
-        st.session_state.exp_years = None
-    if 'palette' not in st.session_state:
-        st.session_state.palette = get_random_palette()
+    if df.empty:
+        return df
     
-    # Sidebar for color palette selection
-    with st.sidebar:
-        # Logo
-        if os.path.exists("logo.png"):
-            st.image("logo.png", use_column_width=True)
-        else:
-            st.markdown("""
-            <div style="text-align: center; padding: 20px; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); border-radius: 10px;">
-                <h1 style="color: white; margin: 0;">UnIst</h1>
-                <p style="color: white; opacity: 0.9;">analytics</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.markdown("---")
-        
-        # Color palette selection
-        st.markdown("### 🎨 Цветовая палитра")
-        palette_names = list(COLOR_PALETTES.keys())
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            selected_palette = st.selectbox(
-                "Выберите палитру",
-                palette_names,
-                index=0
-            )
-        with col2:
-            if st.button("🎲 Случайная"):
-                st.session_state.palette = get_random_palette()
-                st.rerun()
-        
-        if selected_palette:
-            st.session_state.palette = get_palette_by_name(selected_palette)
-        
-        # Display palette preview
-        st.markdown("**Предпросмотр:**")
-        cols = st.columns(5)
-        for i, color in enumerate(st.session_state.palette[:5]):
-            cols[i].markdown(
-                f'<div style="background-color: {color}; width: 30px; height: 30px; border-radius: 5px;"></div>',
-                unsafe_allow_html=True
-            )
-        cols = st.columns(5)
-        for i, color in enumerate(st.session_state.palette[5:10]):
-            cols[i].markdown(
-                f'<div style="background-color: {color}; width: 30px; height: 30px; border-radius: 5px;"></div>',
-                unsafe_allow_html=True
-            )
-        
-        st.markdown("---")
-        
-        # Cache info
-        st.markdown("### 💾 Кэш")
-        cache_size = sum(os.path.getsize(os.path.join(CACHE_DIR, f)) for f in os.listdir(CACHE_DIR) if os.path.isfile(os.path.join(CACHE_DIR, f))) if os.path.exists(CACHE_DIR) else 0
-        st.markdown(f"**Файлов в кэше:** {len(os.listdir(CACHE_DIR)) if os.path.exists(CACHE_DIR) else 0}")
-        st.markdown(f"**Размер кэша:** {cache_size / 1024:.2f} KB")
-        
-        if st.button("🗑️ Очистить кэш"):
-            cache.clear()
-            st.rerun()
+    df['belongs_to_period'] = df.apply(
+        lambda row: row['late_dt'] is not None and row['late_dt'].year in target_years_set 
+        if pd.notna(row['late_dt']) else False, 
+        axis=1
+    )
     
-    # Main content
-    st.markdown("""
-    <div class="title-container fade-in">
-        <h1>📊 UnIst Analytics</h1>
-        <p>Комплексный анализ публикаций организаций через OpenAlex и Crossref</p>
+    if 'late_dt' in df.columns:
+        df['late_date'] = df['late_dt'].apply(
+            lambda x: x.strftime("%Y-%m-%d") if pd.notna(x) else None
+        )
+        df = df.drop('late_dt', axis=1)
+    
+    # Add IF and CiteScore metrics
+    if st.session_state.issn_mapping:
+        df = add_issn_metrics_to_df(df, st.session_state.issn_mapping)
+    
+    column_order = [
+        'doi', 'title', 'belongs_to_period', 'late_date', 'late_year',
+        'print_date', 'online_date', 'publication_year', 'publication_date',
+        'authors', 'authors_count', 'orcids',
+        'affiliations', 'countries', 'journal', 'issn', 'publisher', 'type',
+        'volume', 'issue', 'pages', 'IF', 'IF_Q', 'CS', 'CS_Q',
+        'is_oa', 'funding',
+        'references_count', 'citations_cr', 'citations_oa',
+        'openalex_id', 'language', 'status'
+    ]
+    
+    existing_cols = [col for col in column_order if col in df.columns]
+    df = df[existing_cols]
+    
+    return df
+
+# ─── STREAMLIT UI ────────────────────────────────────────────────────
+
+# Sidebar
+with st.sidebar:
+    st.markdown(f"""
+    <div style="text-align: center; padding: 20px;">
+        <h2 style="color: {st.session_state.color_palette['primary']};">🔬 UnIst Analytics</h2>
+        <p>Advanced Scientific Publication Analyzer</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Input section
-    col1, col2 = st.columns([3, 1])
+    # Информация о статусе
+    st.markdown("---")
+    st.markdown("### 📊 Status")
+    
+    if st.session_state.selected_ror:
+        st.success(f"✅ Organization selected: `{st.session_state.selected_ror}`")
+    else:
+        st.warning("⏳ No organization selected")
+    
+    if st.session_state.analysis_complete:
+        st.success(f"✅ Analysis complete: {len(st.session_state.results_df) if st.session_state.results_df is not None else 0} papers")
+    
+    # Информация о кэше
+    st.markdown("---")
+    st.markdown("### 💾 Cache Info")
+    cache_size = len([f for f in os.listdir(CACHE_DIR) if f.endswith('.pkl')]) if os.path.exists(CACHE_DIR) else 0
+    st.info(f"📁 Cached items: {cache_size}")
+    
+    if st.button("🗑️ Clear Cache", use_container_width=True):
+        cache.clear()
+        st.success("Cache cleared!")
+        st.rerun()
+    
+    # Информация о IF/CS файлах
+    st.markdown("---")
+    st.markdown("### 📚 Journal Metrics")
+    if os.path.exists("IF.xlsx"):
+        st.success("✅ IF.xlsx loaded")
+    else:
+        st.warning("⚠️ IF.xlsx not found")
+    
+    if os.path.exists("CS.xlsx"):
+        st.success("✅ CS.xlsx loaded")
+    else:
+        st.warning("⚠️ CS.xlsx not found")
+    
+    # Кнопка сброса
+    st.markdown("---")
+    if st.button("🔄 Reset Application", use_container_width=True):
+        for key in list(st.session_state.keys()):
+            if key != 'color_palette':  # Сохраняем цветовую палитру
+                del st.session_state[key]
+        st.rerun()
+
+# Main content area with tabs
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "🔍 Search & Analysis", 
+    "📊 Results", 
+    "📈 Visualizations", 
+    "🌐 Networks",
+    "📥 Export"
+])
+
+# Tab 1: Search & Analysis
+with tab1:
+    col1, col2 = st.columns([2, 1])
     
     with col1:
+        st.markdown("### 🏛 Organization Input")
         org_input = st.text_input(
-            "🔍 Организация",
-            placeholder="ROR ID, URL или название (например: 05wv0v765 или Ural Federal University)",
+            "Enter ROR or organization name",
+            placeholder="e.g., 05wv0v765 or Ural Federal University",
             key="org_input"
+        )
+        
+        st.markdown("### 📅 Period Input")
+        years_input = st.text_input(
+            "Enter years",
+            placeholder="e.g., 2023, 2022-2024, or 2021,2023-2025",
+            key="years_input"
         )
     
     with col2:
-        search_clicked = st.button("🔍 Найти организацию", use_container_width=True)
+        st.markdown("### ℹ️ Examples")
+        with st.expander("Organization Examples"):
+            st.markdown("""
+            - ROR ID: `05wv0v765`
+            - URL: `https://ror.org/05wv0v765`
+            - Name: `Ural Federal University`
+            - Name with hyphen: `Institute of High-Temperature Electrochemistry`
+            """)
+        
+        with st.expander("Year Examples"):
+            st.markdown("""
+            - Single year: `2023`
+            - Range: `2022-2024`
+            - Mixed: `2021,2023-2025`
+            """)
     
+    # Search button
+    col1, col2, col3 = st.columns([1, 1, 2])
+    with col1:
+        search_clicked = st.button("🔍 Find Organization", use_container_width=True, type="primary")
+    
+    with col2:
+        analyze_clicked = st.button("📊 Run Analysis", use_container_width=True, type="secondary", 
+                                   disabled=st.session_state.selected_ror is None)
+    
+    # Handle search
     if search_clicked and org_input:
-        with st.spinner("Поиск организации..."):
+        with st.spinner("🔍 Searching for organization..."):
             ror_id, error = select_organization(org_input)
             
             if ror_id:
                 st.session_state.selected_ror = ror_id
-                st.session_state.org_search_results = None
-                st.markdown(f"""
-                <div class="success-box fade-in">
-                    ✅ Используется ROR: <b>{ror_id}</b>
-                </div>
-                """, unsafe_allow_html=True)
+                st.success(f"✅ Using ROR: {ror_id}")
+                st.rerun()
             elif error:
-                st.markdown(f"""
-                <div class="error-box fade-in">
-                    ❌ {error}
-                </div>
-                """, unsafe_allow_html=True)
+                st.error(f"❌ {error}")
             else:
                 st.session_state.org_search_results = error
-    
-    # Organization selection dropdown
-    if st.session_state.org_search_results:
-        results = st.session_state.org_search_results
-        
-        options = []
-        for i, org in enumerate(results, 1):
-            ror_id = org['ror'].replace('https://ror.org/', '') if org['ror'] else 'N/A'
-            label = f"{i}. {org['display_name']} | {org.get('country', 'N/A')} | Works: {org['works_count']:,}"
-            options.append(label)
-        
-        selected_idx = st.selectbox(
-            "📋 Выберите организацию из списка:",
-            range(len(options)),
-            format_func=lambda x: options[x]
-        )
-        
-        if st.button("✅ Подтвердить выбор", use_container_width=True):
-            selected_org = results[selected_idx]
-            ror_id = selected_org['ror'].replace('https://ror.org/', '') if selected_org['ror'] else None
-            st.session_state.selected_ror = ror_id
-            st.session_state.org_search_results = None
-            st.markdown(f"""
-            <div class="success-box fade-in">
-                ✅ Выбрана организация: <b>{selected_org['display_name']}</b> (ROR: {ror_id})
-            </div>
-            """, unsafe_allow_html=True)
-            st.rerun()
-    
-    # Show selected ROR
-    if st.session_state.selected_ror:
-        st.markdown(f"""
-        <div class="info-box fade-in">
-            <b>🏛 Выбранная организация:</b> ROR ID = {st.session_state.selected_ror}
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Year input
-        years_input = st.text_input(
-            "📅 Годы",
-            placeholder="2023, 2022-2024, или 2021,2023-2025",
-            key="years_input"
-        )
-        
-        if st.button("🚀 Запустить анализ", use_container_width=True):
-            if not years_input:
-                st.markdown("""
-                <div class="error-box fade-in">
-                    ❌ Введите годы для анализа
-                </div>
-                """, unsafe_allow_html=True)
-                return
-            
-            orig_years_list = parse_year_input(years_input)
-            if not orig_years_list:
-                st.markdown("""
-                <div class="error-box fade-in">
-                    ❌ Ошибка парсинга годов<br>
-                    Примеры: 2023, 2022-2024, 2021,2023-2025
-                </div>
-                """, unsafe_allow_html=True)
-                return
-            
-            st.session_state.orig_years = orig_years_list
-            st.session_state.exp_years = get_expanded_years(orig_years_list)
-            
-            # Run analysis
-            with st.spinner("Сбор данных..."):
-                # Collect DOIs
-                st.markdown("""
-                <div class="info-box fade-in">
-                    📥 Сбор DOI из OpenAlex...
-                </div>
-                """, unsafe_allow_html=True)
+                st.info(f"Found {len(error)} organizations. Please select:")
                 
-                dois, err = fetch_all_dois_openalex(
-                    st.session_state.selected_ror, 
-                    st.session_state.exp_years
+                # Create selection dropdown
+                options = []
+                for i, org in enumerate(error, 1):
+                    ror_id = org['ror'].replace('https://ror.org/', '') if org['ror'] else 'N/A'
+                    label = f"{i}. {org['display_name']} | {org.get('country', 'N/A')} | Works: {org['works_count']:,}"
+                    options.append((label, org['ror']))
+                
+                selected_org = st.selectbox(
+                    "Select organization:",
+                    options=options,
+                    format_func=lambda x: x[0] if isinstance(x, tuple) else x,
+                    key="org_selector"
                 )
                 
-                if err:
-                    st.markdown(f"""
-                    <div class="error-box fade-in">
-                        ❌ Ошибка: {err}
-                    </div>
-                    """, unsafe_allow_html=True)
-                    return
-                
-                if not dois:
-                    st.markdown("""
-                    <div class="warning-box fade-in">
-                        ⚠️ Не найдено публикаций с DOI за указанный период
-                    </div>
-                    """, unsafe_allow_html=True)
-                    return
-                
-                st.markdown(f"""
-                <div class="success-box fade-in">
-                    ✅ Найдено {len(dois):,} уникальных DOI
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.session_state.dois_list = dois
-                
-                # Process DOIs
-                st.markdown("""
-                <div class="info-box fade-in">
-                    🔍 Обработка данных из Crossref и OpenAlex...
-                </div>
-                """, unsafe_allow_html=True)
-                
-                results, errors = process_dois_parallel(dois, st.session_state.selected_ror)
-                
-                st.session_state.results_list = results
-                st.session_state.errors_list = errors
-                
-                if results:
-                    st.session_state.results_df = create_results_dataframe(
-                        results, 
-                        set(st.session_state.orig_years)
-                    )
-                    
-                    st.markdown(f"""
-                    <div class="success-box fade-in">
-                        ✅ Успешно обработано: {len(results):,}<br>
-                        ❌ Ошибок: {len(errors):,}
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
+                if selected_org and st.button("✅ Confirm Selection", use_container_width=True):
+                    ror_id = selected_org[1].replace('https://ror.org/', '')
+                    st.session_state.selected_ror = ror_id
+                    st.success(f"✅ Selected organization with ROR: {ror_id}")
                     st.rerun()
     
-    # Display results if available
-    if st.session_state.results_df is not None and not st.session_state.results_df.empty:
+    # Handle analysis
+    if analyze_clicked and st.session_state.selected_ror and years_input:
+        with st.spinner("🚀 Starting comprehensive analysis..."):
+            # Parse years
+            orig_years_list = parse_year_input(years_input)
+            if not orig_years_list:
+                st.error("❌ Error: could not parse years")
+            else:
+                st.session_state.orig_years_list = orig_years_list
+                orig_years_set = set(orig_years_list)
+                st.session_state.exp_years = get_expanded_years(orig_years_list)
+                
+                # Display parameters
+                st.info(f"""
+                **Analysis Parameters:**
+                - 🏛 ROR ID: {st.session_state.selected_ror}
+                - 📅 Original period: {', '.join(map(str, orig_years_list))}
+                - 🔍 Search period: {', '.join(map(str, st.session_state.exp_years))}
+                """)
+                
+                # Collect DOIs
+                st.write("1. Collecting DOIs from OpenAlex...")
+                dois, err = fetch_all_dois_openalex(st.session_state.selected_ror, st.session_state.exp_years)
+                
+                if err:
+                    st.error(f"❌ Error: {err}")
+                elif not dois:
+                    st.warning("❌ No publications with DOI in expanded period")
+                else:
+                    st.success(f"✅ Unique DOIs collected: {len(dois):,}")
+                    st.session_state.dois_list = dois
+                    
+                    # Process DOIs
+                    st.write("2. Retrieving enhanced data from Crossref and OpenAlex...")
+                    st.write(f"   → Using {MAX_WORKERS} parallel threads")
+                    st.write(f"   → Max retries: {MAX_RETRIES}")
+                    
+                    start = time.time()
+                    results, errors = process_dois_parallel(dois, st.session_state.selected_ror)
+                    duration = time.time() - start
+                    
+                    st.session_state.errors_list = errors
+                    
+                    if results:
+                        df = create_results_dataframe(results, orig_years_set)
+                        st.session_state.results_df = df
+                        st.session_state.analysis_complete = True
+                        
+                        st.success(f"""
+                        ✅ Processing complete!
+                        - Successful: {len(results):,}
+                        - Errors: {len(errors):,}
+                        - Time: {duration:.1f} sec
+                        """)
+                        
+                        # Show summary
+                        belong = df[df['belongs_to_period'] == True].copy()
+                        not_belong = df[df['belongs_to_period'] == False].copy()
+                        
+                        st.metric("Papers in target period", f"{len(belong):,}", 
+                                 f"{len(belong)/len(results):.1%}")
+                        st.metric("Papers outside period", f"{len(not_belong):,}", 
+                                 f"{len(not_belong)/len(results):.1%}")
+                    else:
+                        st.error("❌ No successfully processed papers")
+
+# Tab 2: Results
+with tab2:
+    if st.session_state.analysis_complete and st.session_state.results_df is not None:
         df = st.session_state.results_df
-        belong = df[df['belongs_to_period'] == True].copy()
-        not_belong = df[df['belongs_to_period'] == False].copy()
         
-        # Summary metrics
-        st.markdown("## 📊 Общая статистика")
+        # Filters
+        st.markdown("### 🔍 Filter Results")
+        col1, col2, col3 = st.columns(3)
         
+        with col1:
+            show_only_period = st.checkbox("Show only papers in target period", value=True)
+        
+        with col2:
+            if 'journal' in df.columns:
+                journals = ['All'] + sorted(df['journal'].dropna().unique().tolist())
+                selected_journal = st.selectbox("Filter by journal", journals)
+        
+        with col3:
+            if 'type' in df.columns:
+                types = ['All'] + sorted(df['type'].dropna().unique().tolist())
+                selected_type = st.selectbox("Filter by type", types)
+        
+        # Apply filters
+        filtered_df = df.copy()
+        if show_only_period:
+            filtered_df = filtered_df[filtered_df['belongs_to_period'] == True]
+        
+        if selected_journal != 'All':
+            filtered_df = filtered_df[filtered_df['journal'] == selected_journal]
+        
+        if selected_type != 'All':
+            filtered_df = filtered_df[filtered_df['type'] == selected_type]
+        
+        # Display statistics
+        st.markdown("### 📊 Summary Statistics")
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.markdown("""
-            <div class="metric-container">
-                <div class="metric-value">{}</div>
-                <div class="metric-label">Всего обработано</div>
-            </div>
-            """.format(len(df)), unsafe_allow_html=True)
+            st.metric("Total Papers", len(filtered_df))
         
         with col2:
-            st.markdown("""
-            <div class="metric-container">
-                <div class="metric-value">{}</div>
-                <div class="metric-label">В целевом периоде</div>
-            </div>
-            """.format(len(belong)), unsafe_allow_html=True)
+            if 'authors_count' in filtered_df.columns:
+                st.metric("Avg Authors", f"{filtered_df['authors_count'].mean():.1f}")
         
         with col3:
-            st.markdown("""
-            <div class="metric-container">
-                <div class="metric-value">{:.1f}%</div>
-                <div class="metric-label">Open Access</div>
-            </div>
-            """.format(belong['is_oa'].mean() * 100 if not belong.empty else 0), unsafe_allow_html=True)
+            if 'citations_cr' in filtered_df.columns:
+                st.metric("Avg Citations (CR)", f"{filtered_df['citations_cr'].mean():.1f}")
         
         with col4:
-            st.markdown("""
-            <div class="metric-container">
-                <div class="metric-value">{:.1f}</div>
-                <div class="metric-label">Ср. цитирований</div>
-            </div>
-            """.format(belong['citations_cr'].mean() if not belong.empty else 0), unsafe_allow_html=True)
+            if 'citations_oa' in filtered_df.columns:
+                st.metric("Avg Citations (OA)", f"{filtered_df['citations_oa'].mean():.1f}")
         
-        # Tabs for different visualizations
-        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-            "📋 Данные", 
-            "📈 Графики", 
-            "🌍 Сети",
-            "📊 IF/CS анализ",
-            "📑 Статистика",
-            "❌ Ошибки"
-        ])
+        # Display dataframe
+        st.markdown("### 📋 Publications")
         
-        with tab1:
-            st.markdown("### 📋 Данные публикаций")
+        # Select columns to display
+        display_cols = ['title', 'authors', 'journal', 'late_year', 'citations_cr', 'citations_oa']
+        display_cols = [col for col in display_cols if col in filtered_df.columns]
+        
+        # Add IF/CS columns if they exist
+        if 'IF' in filtered_df.columns:
+            display_cols.extend(['IF', 'IF_Q'])
+        if 'CS' in filtered_df.columns:
+            display_cols.extend(['CS', 'CS_Q'])
+        
+        st.dataframe(
+            filtered_df[display_cols].head(100),
+            use_container_width=True,
+            height=400
+        )
+        
+        st.caption(f"Showing first 100 of {len(filtered_df)} records")
+        
+    else:
+        st.info("👈 Please run an analysis first in the Search & Analysis tab")
+
+# Tab 3: Visualizations
+with tab3:
+    if st.session_state.analysis_complete and st.session_state.results_df is not None:
+        st.markdown("### 📈 Scientific Visualizations")
+        
+        with st.spinner("Creating visualizations..."):
+            figs = create_enhanced_visualizations(st.session_state.results_df)
             
-            # Filter by period
-            show_period_only = st.checkbox("Только целевой период", value=True)
-            display_df = belong if show_period_only else df
-            
-            st.dataframe(
-                display_df,
-                use_container_width=True,
-                height=500
+            if figs:
+                # Create rows of visualizations
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    if 'timeline' in figs:
+                        st.pyplot(figs['timeline'])
+                        st.caption("Figure 1: Publication timeline showing distribution over years")
+                
+                with col2:
+                    if 'journals' in figs:
+                        st.pyplot(figs['journals'])
+                        st.caption("Figure 2: Top 10 journals by number of publications")
+                
+                col3, col4 = st.columns(2)
+                
+                with col3:
+                    if 'citations' in figs:
+                        st.pyplot(figs['citations'])
+                        st.caption("Figure 3: Citation distribution comparison")
+                
+                with col4:
+                    if 'oa_trend' in figs:
+                        st.pyplot(figs['oa_trend'])
+                        st.caption("Figure 4: Open Access trend over time")
+                
+                if 'countries' in figs:
+                    st.pyplot(figs['countries'])
+                    st.caption("Figure 5: Country collaboration heatmap")
+            else:
+                st.warning("No data available for visualization")
+    else:
+        st.info("👈 Please run an analysis first in the Search & Analysis tab")
+
+# Tab 4: Networks
+with tab4:
+    if st.session_state.analysis_complete and st.session_state.results_df is not None:
+        st.markdown("### 🌐 Network Analysis")
+        
+        df = st.session_state.results_df
+        belong = df[df['belongs_to_period'] == True].copy()
+        
+        if not belong.empty:
+            # Network type selector
+            network_type = st.radio(
+                "Select network type:",
+                ["Country Collaboration", "Affiliation Collaboration"],
+                horizontal=True
             )
             
-            # Download buttons
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Excel download
-                excel_output, excel_filename = export_to_excel(
-                    df,
-                    st.session_state.results_list,
-                    st.session_state.errors_list,
-                    st.session_state.selected_ror,
-                    st.session_state.orig_years,
-                    st.session_state.exp_years
-                )
+            if network_type == "Country Collaboration":
+                G, stats = create_country_network(df)
                 
-                st.download_button(
-                    label="📥 Скачать Excel",
-                    data=excel_output,
-                    file_name=excel_filename,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
+                if len(G.nodes()) > 0:
+                    st.markdown("#### Country Collaboration Network")
+                    
+                    # Network statistics
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Countries", len(G.nodes()))
+                    with col2:
+                        st.metric("Collaborations", len(G.edges()))
+                    with col3:
+                        st.metric("Avg Partners", f"{sum(dict(G.degree()).values())/len(G.nodes()):.2f}")
+                    
+                    # Create interactive plot
+                    pos = nx.spring_layout(G, k=2, iterations=50)
+                    
+                    # Create edge trace
+                    edge_trace = []
+                    for edge in G.edges():
+                        x0, y0 = pos[edge[0]]
+                        x1, y1 = pos[edge[1]]
+                        edge_trace.append(go.Scatter(
+                            x=[x0, x1, None], y=[y0, y1, None],
+                            line=dict(width=G[edge[0]][edge[1]]['weight'], color='#888'),
+                            hoverinfo='none',
+                            mode='lines'
+                        ))
+                    
+                    # Create node trace
+                    node_x = []
+                    node_y = []
+                    node_text = []
+                    node_size = []
+                    
+                    for node in G.nodes():
+                        x, y = pos[node]
+                        node_x.append(x)
+                        node_y.append(y)
+                        node_text.append(f"{node}<br>Papers: {G.nodes[node]['papers']}<br>Partners: {G.degree(node)}")
+                        node_size.append(G.nodes[node]['papers'] * 3)
+                    
+                    node_trace = go.Scatter(
+                        x=node_x, y=node_y,
+                        mode='markers+text',
+                        text=list(G.nodes()),
+                        textposition="top center",
+                        hovertext=node_text,
+                        hoverinfo='text',
+                        marker=dict(
+                            size=node_size,
+                            color=st.session_state.color_palette['primary'],
+                            line=dict(color='darkblue', width=2)
+                        )
+                    )
+                    
+                    fig = go.Figure(data=edge_trace + [node_trace],
+                                   layout=go.Layout(
+                                       title='Country Collaboration Network',
+                                       showlegend=False,
+                                       hovermode='closest',
+                                       xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                       yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                       height=600
+                                   ))
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Show top collaborations
+                    st.markdown("#### Top Collaborations")
+                    edges_data = []
+                    for edge in G.edges():
+                        edges_data.append({
+                            'Country 1': edge[0],
+                            'Country 2': edge[1],
+                            'Collaborations': G[edge[0]][edge[1]]['weight']
+                        })
+                    
+                    edges_df = pd.DataFrame(edges_data)
+                    edges_df = edges_df.sort_values('Collaborations', ascending=False).head(10)
+                    st.dataframe(edges_df, use_container_width=True)
+                
+                else:
+                    st.warning("No country collaboration data available")
             
-            with col2:
-                # CSV download
-                csv = display_df.to_csv(index=False).encode('utf-8')
+            else:  # Affiliation Collaboration
+                G, stats = create_affiliation_network(df)
+                
+                if len(G.nodes()) > 0:
+                    st.markdown("#### Affiliation Collaboration Network")
+                    
+                    # Network statistics
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Affiliations", len(G.nodes()))
+                    with col2:
+                        st.metric("Collaborations", len(G.edges()))
+                    with col3:
+                        st.metric("Avg Partners", f"{sum(dict(G.degree()).values())/len(G.nodes()):.2f}")
+                    
+                    # Filter to top nodes for better visualization
+                    node_degrees = dict(G.degree())
+                    top_nodes = sorted(node_degrees, key=node_degrees.get, reverse=True)[:20]
+                    G_sub = G.subgraph(top_nodes)
+                    
+                    if len(G_sub.nodes()) > 0:
+                        pos = nx.spring_layout(G_sub, k=3, iterations=50)
+                        
+                        # Create edge trace
+                        edge_trace = []
+                        for edge in G_sub.edges():
+                            x0, y0 = pos[edge[0]]
+                            x1, y1 = pos[edge[1]]
+                            edge_trace.append(go.Scatter(
+                                x=[x0, x1, None], y=[y0, y1, None],
+                                line=dict(width=G_sub[edge[0]][edge[1]]['weight'], color='#888'),
+                                hoverinfo='none',
+                                mode='lines'
+                            ))
+                        
+                        # Create node trace
+                        node_x = []
+                        node_y = []
+                        node_text = []
+                        node_size = []
+                        
+                        for node in G_sub.nodes():
+                            x, y = pos[node]
+                            node_x.append(x)
+                            node_y.append(y)
+                            node_text.append(f"{node[:50]}...<br>Papers: {G_sub.nodes[node]['papers']}<br>Partners: {G_sub.degree(node)}")
+                            node_size.append(G_sub.nodes[node]['papers'] * 2)
+                        
+                        node_trace = go.Scatter(
+                            x=node_x, y=node_y,
+                            mode='markers+text',
+                            text=[n[:20] + '...' if len(n) > 20 else n for n in G_sub.nodes()],
+                            textposition="top center",
+                            hovertext=node_text,
+                            hoverinfo='text',
+                            marker=dict(
+                                size=node_size,
+                                color=st.session_state.color_palette['secondary'],
+                                line=dict(color='darkgreen', width=2)
+                            )
+                        )
+                        
+                        fig = go.Figure(data=edge_trace + [node_trace],
+                                       layout=go.Layout(
+                                           title='Top 20 Affiliations Collaboration Network',
+                                           showlegend=False,
+                                           hovermode='closest',
+                                           xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                           yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                           height=600
+                                       ))
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # Show top affiliations
+                        st.markdown("#### Top Affiliations")
+                        nodes_data = []
+                        for node in G.nodes(data=True):
+                            nodes_data.append({
+                                'Affiliation': node[0],
+                                'Papers': node[1].get('papers', 0),
+                                'Countries': node[1].get('countries', ''),
+                                'Collaboration Partners': G.degree(node[0])
+                            })
+                        
+                        nodes_df = pd.DataFrame(nodes_data)
+                        nodes_df = nodes_df.sort_values('Papers', ascending=False).head(20)
+                        st.dataframe(nodes_df, use_container_width=True)
+                    
+                    else:
+                        st.warning("Not enough affiliation data for visualization")
+                else:
+                    st.warning("No affiliation collaboration data available")
+        else:
+            st.warning("No papers in target period for network analysis")
+    else:
+        st.info("👈 Please run an analysis first in the Search & Analysis tab")
+
+# Tab 5: Export
+with tab5:
+    if st.session_state.analysis_complete and st.session_state.results_df is not None:
+        st.markdown("### 📥 Export Data")
+        
+        df = st.session_state.results_df
+        
+        # Export options
+        st.markdown("#### Export Format")
+        export_format = st.radio(
+            "Select export format:",
+            ["Excel (Full Report)", "CSV (Main Data Only)", "JSON (Complete)"],
+            horizontal=True
+        )
+        
+        if export_format == "Excel (Full Report)":
+            st.markdown("#### Excel Export Options")
+            st.info("""
+            The Excel export includes multiple sheets:
+            - Main Data: Complete publication data
+            - Period Statistics: Summary statistics
+            - Top Authors: Author frequency
+            - Journal Frequency: Journal rankings
+            - Publisher Frequency: Publisher rankings
+            - Country Frequency: Country statistics
+            - Citation Statistics: Detailed citation metrics
+            - Year Distribution: Publication timeline
+            - OA Statistics: Open Access metrics
+            - Affiliation Network: Collaboration statistics
+            - Country Network: International collaboration
+            - Errors: Failed DOIs
+            - Metadata: Analysis parameters
+            """)
+            
+            if st.button("📊 Generate Excel Report", use_container_width=True, type="primary"):
+                with st.spinner("Generating Excel report..."):
+                    filename = export_to_excel(
+                        df, 
+                        df.to_dict('records'), 
+                        st.session_state.errors_list,
+                        st.session_state.selected_ror,
+                        st.session_state.orig_years_list,
+                        st.session_state.exp_years
+                    )
+                    
+                    if os.path.exists(filename):
+                        with open(filename, 'rb') as f:
+                            st.download_button(
+                                label="📥 Download Excel File",
+                                data=f,
+                                file_name=filename,
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True
+                            )
+                    else:
+                        st.error("Failed to generate Excel file")
+        
+        elif export_format == "CSV (Main Data Only)":
+            st.markdown("#### CSV Export")
+            
+            # Select columns for CSV
+            available_cols = df.columns.tolist()
+            selected_cols = st.multiselect(
+                "Select columns to export:",
+                available_cols,
+                default=['doi', 'title', 'authors', 'journal', 'late_year', 'citations_cr', 'citations_oa']
+            )
+            
+            if selected_cols:
+                csv_data = df[selected_cols].to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    label="📥 Скачать CSV",
-                    data=csv,
-                    file_name=f"data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    label="📥 Download CSV",
+                    data=csv_data,
+                    file_name=f"analysis_{st.session_state.selected_ror}.csv",
                     mime="text/csv",
                     use_container_width=True
                 )
         
-        with tab2:
-            st.markdown("### 📈 Визуализация данных")
+        else:  # JSON
+            st.markdown("#### JSON Export")
             
-            # Create two columns for plots
-            col1, col2 = st.columns(2)
+            # Prepare JSON data
+            json_data = {
+                'metadata': {
+                    'analysis_date': datetime.now().isoformat(),
+                    'ror_id': st.session_state.selected_ror,
+                    'original_period': st.session_state.orig_years_list,
+                    'search_period': st.session_state.exp_years,
+                    'total_papers': len(df),
+                    'papers_in_period': len(df[df['belongs_to_period'] == True])
+                },
+                'papers': df.to_dict('records'),
+                'errors': st.session_state.errors_list
+            }
             
-            with col1:
-                # Publication timeline
-                fig1 = create_publication_timeline(belong, st.session_state.palette)
-                if fig1:
-                    st.pyplot(fig1)
-                    plt.close(fig1)
-                
-                # Top journals
-                fig3 = create_top_journals_plot(belong, st.session_state.palette)
-                if fig3:
-                    st.pyplot(fig3)
-                    plt.close(fig3)
-                
-                # Publication types
-                fig6 = create_publication_types_plot(belong, st.session_state.palette)
-                if fig6:
-                    st.pyplot(fig6)
-                    plt.close(fig6)
-                
-                # Funding distribution
-                fig8 = create_funding_distribution_plot(belong, st.session_state.palette)
-                if fig8:
-                    st.pyplot(fig8)
-                    plt.close(fig8)
-            
-            with col2:
-                # Citation distribution
-                fig2 = create_citation_distribution(belong, st.session_state.palette)
-                if fig2:
-                    st.pyplot(fig2)
-                    plt.close(fig2)
-                
-                # OA trend
-                fig4 = create_oa_trend(belong, st.session_state.palette)
-                if fig4:
-                    st.pyplot(fig4)
-                    plt.close(fig4)
-                
-                # Language distribution
-                fig7 = create_language_distribution_plot(belong, st.session_state.palette)
-                if fig7:
-                    st.pyplot(fig7)
-                    plt.close(fig7)
-                
-                # References vs Citations
-                fig5 = create_references_vs_citations_plot(belong, st.session_state.palette)
-                if fig5:
-                    st.pyplot(fig5)
-                    plt.close(fig5)
+            json_str = json.dumps(json_data, indent=2, default=str).encode('utf-8')
+            st.download_button(
+                label="📥 Download JSON",
+                data=json_str,
+                file_name=f"analysis_{st.session_state.selected_ror}.json",
+                mime="application/json",
+                use_container_width=True
+            )
         
-        with tab3:
-            st.markdown("### 🌍 Сетевой анализ")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("#### 🏢 Сеть аффилиаций")
-                fig_aff = create_affiliation_network_plot(belong, st.session_state.palette)
-                if fig_aff:
-                    st.pyplot(fig_aff)
-                    plt.close(fig_aff)
-                else:
-                    st.info("Недостаточно данных для построения сети аффилиаций")
-            
-            with col2:
-                st.markdown("#### 🌍 Сеть стран")
-                fig_country = create_country_network_plot(belong, st.session_state.palette)
-                if fig_country:
-                    st.pyplot(fig_country)
-                    plt.close(fig_country)
-                else:
-                    st.info("Недостаточно данных для построения сети стран")
-            
-            # Author collaboration matrix
-            st.markdown("#### 👥 Матрица соавторства")
-            fig_auth = create_author_collaboration_plot(belong, st.session_state.palette)
-            if fig_auth:
-                st.pyplot(fig_auth)
-                plt.close(fig_auth)
-            else:
-                st.info("Недостаточно данных для построения матрицы соавторства")
-            
-            # Country map
-            st.markdown("#### 🗺️ Географическое распределение")
-            fig_map = create_country_map(belong, st.session_state.palette)
-            if fig_map:
-                st.plotly_chart(fig_map, use_container_width=True)
-            else:
-                st.info("Недостаточно данных для построения карты")
+        # Preview
+        st.markdown("#### Data Preview")
+        st.dataframe(df.head(10), use_container_width=True)
         
-        with tab4:
-            st.markdown("### 📊 Анализ Impact Factor и CiteScore")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("#### 📈 Impact Factor")
-                if 'IF' in belong.columns:
-                    if_data = belong['IF'].dropna()
-                    if not if_data.empty:
-                        st.metric("Средний IF", f"{if_data.mean():.3f}")
-                        st.metric("Медианный IF", f"{if_data.median():.3f}")
-                        st.metric("Максимальный IF", f"{if_data.max():.3f}")
-                        
-                        # IF distribution
-                        fig_if, ax = plt.subplots(figsize=(10, 6))
-                        ax.hist(if_data, bins=20, color=st.session_state.palette[0], alpha=0.7, edgecolor='black')
-                        ax.set_xlabel('Impact Factor')
-                        ax.set_ylabel('Frequency')
-                        ax.set_title('Distribution of Impact Factors')
-                        ax.grid(True, alpha=0.3)
-                        st.pyplot(fig_if)
-                        plt.close(fig_if)
-                    else:
-                        st.info("Нет данных по Impact Factor")
-                else:
-                    st.info("Нет данных по Impact Factor")
-            
-            with col2:
-                st.markdown("#### 📊 CiteScore")
-                if 'CS' in belong.columns:
-                    cs_data = belong['CS'].dropna()
-                    if not cs_data.empty:
-                        st.metric("Средний CiteScore", f"{cs_data.mean():.3f}")
-                        st.metric("Медианный CiteScore", f"{cs_data.median():.3f}")
-                        st.metric("Максимальный CiteScore", f"{cs_data.max():.3f}")
-                        
-                        # CS distribution
-                        fig_cs, ax = plt.subplots(figsize=(10, 6))
-                        ax.hist(cs_data, bins=20, color=st.session_state.palette[1], alpha=0.7, edgecolor='black')
-                        ax.set_xlabel('CiteScore')
-                        ax.set_ylabel('Frequency')
-                        ax.set_title('Distribution of CiteScores')
-                        ax.grid(True, alpha=0.3)
-                        st.pyplot(fig_cs)
-                        plt.close(fig_cs)
-                    else:
-                        st.info("Нет данных по CiteScore")
-                else:
-                    st.info("Нет данных по CiteScore")
-            
-            # Quartile distribution
-            st.markdown("#### 📊 Распределение по квартилям")
-            fig_quartile = create_quartile_distribution_plot(belong, st.session_state.palette)
-            if fig_quartile:
-                st.pyplot(fig_quartile)
-                plt.close(fig_quartile)
-        
-        with tab5:
-            st.markdown("### 📑 Детальная статистика")
-            
-            # Author frequency
-            st.markdown("#### 👥 Топ авторов")
-            author_counter = generate_author_frequency(belong)
-            author_df = pd.DataFrame(author_counter.most_common(20), columns=['Author', 'Papers'])
-            st.dataframe(author_df, use_container_width=True)
-            
-            # Journal frequency
-            st.markdown("#### 📚 Топ журналов")
-            journal_freq = generate_journal_frequency(belong).head(20)
-            journal_df = pd.DataFrame({
-                'Journal': journal_freq.index,
-                'Papers': journal_freq.values
-            })
-            st.dataframe(journal_df, use_container_width=True)
-            
-            # Publisher frequency
-            st.markdown("#### 🏢 Топ издателей")
-            publisher_freq = generate_publisher_frequency(belong).head(20)
-            publisher_df = pd.DataFrame({
-                'Publisher': publisher_freq.index,
-                'Papers': publisher_freq.values
-            })
-            st.dataframe(publisher_df, use_container_width=True)
-            
-            # Country frequency
-            st.markdown("#### 🌍 Топ стран")
-            country_counter = generate_country_frequency(belong)
-            country_df = pd.DataFrame(country_counter.most_common(20), columns=['Country', 'Papers'])
-            st.dataframe(country_df, use_container_width=True)
-        
-        with tab6:
-            st.markdown("### ❌ Ошибки обработки")
-            
-            if st.session_state.errors_list:
-                errors_df = pd.DataFrame({
-                    'DOI': st.session_state.errors_list,
-                    'Status': 'Failed'
-                })
-                st.dataframe(errors_df, use_container_width=True)
-                
-                # Download errors
-                errors_csv = errors_df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Скачать список ошибок",
-                    data=errors_csv,
-                    file_name=f"errors_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.success("✅ Ошибок не обнаружено")
+    else:
+        st.info("👈 Please run an analysis first in the Search & Analysis tab")
 
-if __name__ == "__main__":
-    main()
+# Footer
+st.markdown("---")
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.markdown(f"**Cache:** `{CACHE_DIR}`")
+with col2:
+    st.markdown(f"**Logs:** `{LOG_DIR}`")
+with col3:
+    st.markdown(f"**Version:** 2.0.0")
+
+# Display random color palette info
+with st.expander("🎨 Current Color Palette"):
+    colors = st.session_state.color_palette
+    st.markdown(f"""
+    <div style="display: flex; gap: 10px; padding: 10px;">
+        <div style="background-color: {colors['primary']}; width: 50px; height: 50px; border-radius: 10px;"></div>
+        <div style="background-color: {colors['secondary']}; width: 50px; height: 50px; border-radius: 10px;"></div>
+        <div style="background-color: {colors['accent']}; width: 50px; height: 50px; border-radius: 10px;"></div>
+        <div style="background-color: {colors['background']}; width: 50px; height: 50px; border-radius: 10px; border: 1px solid white;"></div>
+        <div style="background-color: {colors['success']}; width: 50px; height: 50px; border-radius: 10px;"></div>
+        <div style="background-color: {colors['warning']}; width: 50px; height: 50px; border-radius: 10px;"></div>
+        <div style="background-color: {colors['info']}; width: 50px; height: 50px; border-radius: 10px;"></div>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("🎲 Randomize Palette"):
+        st.session_state.color_palette = random.choice(COLOR_PALETTES)
+        st.rerun()
