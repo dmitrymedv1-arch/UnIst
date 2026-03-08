@@ -1289,6 +1289,9 @@ def get_crossref_data(doi):
         
         authors = []
         orcids = []
+        # Собираем все аффилиации из Crossref для дальнейшей проверки
+        crossref_affiliations = []
+        
         for author in msg.get('author', []):
             given = author.get('given', '')
             family = author.get('family', '')
@@ -1303,10 +1306,21 @@ def get_crossref_data(doi):
             if orcid:
                 orcid_clean = re.sub(r'^https?://orcid\.org/', '', orcid)
                 orcids.append(orcid_clean)
+            
+            # Собираем аффилиации из Crossref
+            if 'affiliation' in author and author['affiliation']:
+                for aff in author['affiliation']:
+                    if isinstance(aff, dict) and 'name' in aff and aff['name']:
+                        crossref_affiliations.append(aff['name'].strip())
+                    elif isinstance(aff, str) and aff:
+                        crossref_affiliations.append(aff.strip())
         
         authors_str = '; '.join(authors) if authors else ''
         orcids_str = '; '.join(orcids) if orcids else ''
         authors_count = len(authors)
+        
+        # Удаляем дубликаты аффилиаций
+        crossref_affiliations = list(dict.fromkeys(crossref_affiliations))
         
         # Extract ISSN information
         issn_list = []
@@ -1315,7 +1329,7 @@ def get_crossref_data(doi):
         if 'ISSN' in msg and msg['ISSN']:
             issn_list.extend(msg['ISSN'])
         
-        # Get ISSN from issn-type field if present (for additional validation/ordering)
+        # Get ISSN from issn-type field if present
         if 'issn-type' in msg and msg['issn-type']:
             for issn_type_item in msg['issn-type']:
                 if 'value' in issn_type_item and issn_type_item['value'] not in issn_list:
@@ -1329,7 +1343,7 @@ def get_crossref_data(doi):
                 seen.add(issn)
                 unique_issns.append(issn)
         
-        # Format ISSN string: either single ISSN or multiple separated by semicolon
+        # Format ISSN string
         if unique_issns:
             if len(unique_issns) == 1:
                 issn_str = unique_issns[0]
@@ -1369,7 +1383,11 @@ def get_crossref_data(doi):
             'references_count': references_count,
             'citations_cr': citations_cr,
             'publisher': msg.get('publisher', ''),
-            'type': msg.get('type', '')
+            'type': msg.get('type', ''),
+            # Добавляем список аффилиаций из Crossref
+            'crossref_affiliations': crossref_affiliations,
+            # Флаг наличия аффилиаций в Crossref
+            'has_crossref_affiliations': len(crossref_affiliations) > 0
         }
         
         cache.set(cache_key, result)
@@ -1472,6 +1490,64 @@ def get_openalex_data(doi, target_ror=None):
         logger.error(f"Error getting OpenAlex data for {doi}: {e}")
         return None
 
+def check_affiliation_match(paper_data: Dict, target_org_name: str) -> Tuple[bool, str]:
+    """
+    Проверяет, принадлежит ли статья указанному институту.
+    Возвращает: (принадлежит, источник_проверки)
+    Источники: 'crossref', 'openalex', 'none'
+    """
+    
+    # Нормализуем название искомого института для сравнения
+    target_normalized = normalize_org_name(target_org_name)
+    target_words = set(target_normalized.split())
+    
+    # Функция для проверки совпадения с нормализованным названием
+    def matches_target(affiliation_name: str) -> bool:
+        if not affiliation_name:
+            return False
+        aff_normalized = normalize_org_name(affiliation_name)
+        
+        # Проверяем точное совпадение
+        if aff_normalized == target_normalized:
+            return True
+        
+        # Проверяем, содержится ли target в аффилиации
+        if target_normalized in aff_normalized:
+            return True
+        
+        # Проверяем, совпадают ли ключевые слова
+        aff_words = set(aff_normalized.split())
+        common_words = target_words & aff_words
+        # Если совпадает больше 2 слов или все слова target'а
+        if len(common_words) >= 2 or common_words == target_words:
+            return True
+        
+        return False
+    
+    # 1. Проверяем данные из Crossref (приоритет)
+    if paper_data.get('has_crossref_affiliations', False):
+        crossref_affs = paper_data.get('crossref_affiliations', [])
+        for aff in crossref_affs:
+            if matches_target(aff):
+                logger.debug(f"Affiliation matched in Crossref: {aff}")
+                return True, 'crossref'
+        # Если в Crossref есть аффилиации, но наша не найдена - статья не принадлежит нам
+        return False, 'crossref'
+    
+    # 2. Если в Crossref нет аффилиаций, проверяем OpenAlex
+    oa_affs_str = paper_data.get('affiliations', '')
+    if oa_affs_str:
+        oa_affs = [a.strip() for a in oa_affs_str.split(';') if a.strip()]
+        for aff in oa_affs:
+            if matches_target(aff):
+                logger.debug(f"Affiliation matched in OpenAlex: {aff}")
+                return True, 'openalex'
+        # Если в OpenAlex есть аффилиации, но наша не найдена
+        return False, 'openalex'
+    
+    # 3. Нет данных ни в одном источнике
+    return False, 'none'
+
 def fetch_all_dois_openalex(ror, years_expanded):
     """Fetch all DOIs from OpenAlex with cursor pagination"""
     if not ror or not years_expanded:
@@ -1545,15 +1621,17 @@ def fetch_all_dois_openalex(ror, years_expanded):
     return all_dois, None
 
 # Parallel DOI processing
-def process_doi_complete(doi, target_ror=None):
+def process_doi_complete(doi, target_ror=None, target_org_name=None):
     """
-    Complete DOI processing: get data from Crossref and OpenAlex
+    Complete DOI processing: get data from Crossref and OpenAlex,
+    then verify affiliation if target organization is provided
     """
     result = {
         'doi': doi,
         'status': 'processing'
     }
     
+    # Получаем данные из Crossref
     cr_data = get_crossref_data(doi)
     if cr_data:
         result.update(cr_data)
@@ -1561,16 +1639,28 @@ def process_doi_complete(doi, target_ror=None):
         result['status'] = 'crossref_error'
         return result
     
+    # Получаем данные из OpenAlex
     oa_data = get_openalex_data(doi, target_ror)
     if oa_data:
         result.update(oa_data)
         result['status'] = 'success'
     else:
         result['status'] = 'openalex_error'
+        # Даже если OpenAlex не ответил, продолжаем с данными Crossref
+    
+    # Проверяем принадлежность институту, если указано название
+    if target_org_name:
+        belongs, source = check_affiliation_match(result, target_org_name)
+        result['belongs_to_org'] = belongs
+        result['affiliation_source'] = source
+        logger.debug(f"DOI {doi}: belongs={belongs}, source={source}")
+    else:
+        result['belongs_to_org'] = True  # Если институт не указан, считаем что все статьи наши
+        result['affiliation_source'] = 'not_checked'
     
     return result
 
-def process_dois_parallel(dois, target_ror=None, max_workers=MAX_WORKERS):
+def process_dois_parallel(dois, target_ror=None, target_org_name=None, max_workers=MAX_WORKERS):
     """Parallel DOI processing with retries for errors"""
     
     results = []
@@ -1595,15 +1685,18 @@ def process_dois_parallel(dois, target_ror=None, max_workers=MAX_WORKERS):
         current_errors = []
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_doi = {executor.submit(process_doi_complete, doi, target_ror): doi 
-                            for doi in remaining_dois}
+            future_to_doi = {
+                executor.submit(process_doi_complete, doi, target_ror, target_org_name): doi 
+                for doi in remaining_dois
+            }
             
             completed = 0
             for future in concurrent.futures.as_completed(future_to_doi):
                 doi = future_to_doi[future]
                 try:
                     res = future.result()
-                    if res.get('status') == 'success':
+                    if res.get('status') == 'success' or res.get('status') == 'openalex_error':
+                        # Принимаем даже если OpenAlex ошибся, но есть Crossref данные
                         current_results.append(res)
                     else:
                         current_errors.append(doi)
@@ -1952,11 +2045,20 @@ def create_results_dataframe(results, target_years_set):
     if df.empty:
         return df
     
+    # Добавляем информацию о проверке аффилиации
+    if 'belongs_to_org' not in df.columns:
+        df['belongs_to_org'] = True
+    if 'affiliation_source' not in df.columns:
+        df['affiliation_source'] = 'not_checked'
+    
     df['belongs_to_period'] = df.apply(
         lambda row: row['late_dt'] is not None and row['late_dt'].year in target_years_set 
         if pd.notna(row['late_dt']) else False, 
         axis=1
     )
+    
+    # Добавляем комбинированный флаг: статья в периоде И принадлежит институту
+    df['include_in_analysis'] = df['belongs_to_period'] & df['belongs_to_org']
     
     if 'late_dt' in df.columns:
         df['late_date'] = df['late_dt'].apply(
@@ -1969,7 +2071,8 @@ def create_results_dataframe(results, target_years_set):
         df = add_issn_metrics_to_df(df, st.session_state.issn_mapping)
     
     column_order = [
-        'doi', 'title', 'belongs_to_period', 'late_date', 'late_year',
+        'doi', 'title', 'include_in_analysis', 'belongs_to_period', 'belongs_to_org', 
+        'affiliation_source', 'late_date', 'late_year',
         'print_date', 'online_date', 'publication_year', 'publication_date',
         'authors', 'authors_count', 'orcids',
         'affiliations', 'countries', 'journal', 'issn', 'publisher', 'type',
@@ -2014,10 +2117,20 @@ def run_analysis_with_progress(ror, years, total_estimated, progress_container, 
         status_container.text(f"   → Using {MAX_WORKERS} parallel threads")
         status_container.text(f"   → Max retries: {MAX_RETRIES}")
         
-        results, errors = process_dois_parallel(dois, ror)
+        results, errors = process_dois_parallel(
+            dois, 
+            target_ror=ror,
+            target_org_name=st.session_state.selected_org_name
+        )
         
         if results:
             df = create_results_dataframe(results, orig_years_set)
+            
+            # Логируем статистику по источникам аффилиаций
+            if 'affiliation_source' in df.columns:
+                source_stats = df['affiliation_source'].value_counts()
+                logger.info(f"Affiliation sources: {source_stats.to_dict()}")
+            
             st.session_state.results_df = df
             st.session_state.errors_list = errors
             st.session_state.orig_years_list = years
@@ -2030,11 +2143,12 @@ def run_analysis_with_progress(ror, years, total_estimated, progress_container, 
                 'total': len(dois),
                 'with_doi': len(dois),
                 'validated': len(results),
-                'kept': len(df[df['belongs_to_period'] == True]),
-                'rejected': len(df[df['belongs_to_period'] == False]),
+                'kept': len(df[df['include_in_analysis'] == True]),  # Используем include_in_analysis
+                'rejected': len(df[df['include_in_analysis'] == False]),
                 'no_doi': 0,
                 'not_found': len(errors),
-                'year_mismatch': 0
+                'year_mismatch': 0,
+                'affiliation_mismatch': len(df[df['belongs_to_period'] & ~df['belongs_to_org']])  # Добавляем статистику по аффилиациям
             }
             st.session_state.validation_stats = validation_stats
             
@@ -3045,7 +3159,7 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
     )
     
     # Apply filter
-    filtered_df = belong.copy()
+    filtered_df = belong[belong['include_in_analysis'] == True].copy()
     if filter_option == "WoS Only":
         filtered_df = filtered_df[filtered_df['wos_indexed'] == True]
     elif filter_option == "Scopus Only":
@@ -3066,9 +3180,22 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
         - Successfully validated: {validation['validated']:,} ({validation['validated']/validation['with_doi']*100:.1f}%)<br>
         - Kept in period: {validation['kept']:,}<br>
         - Rejected (year mismatch): {validation['rejected']:,}<br>
+        - Rejected (affiliation mismatch): {validation.get('affiliation_mismatch', 0):,}<br>
         - Not found in Crossref: {validation['not_found']:,}
         </div>
         """, unsafe_allow_html=True)
+        
+        # Добавляем статистику по источникам аффилиаций
+        if 'affiliation_source' in belong.columns:
+            source_counts = belong['affiliation_source'].value_counts()
+            st.markdown("### Affiliation Verification Sources")
+            col_src1, col_src2, col_src3 = st.columns(3)
+            with col_src1:
+                st.metric("Crossref", source_counts.get('crossref', 0))
+            with col_src2:
+                st.metric("OpenAlex", source_counts.get('openalex', 0))
+            with col_src3:
+                st.metric("Not Checked", source_counts.get('not_checked', 0))
     
     # Tabs for different views
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -3506,6 +3633,7 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
             mime="application/json",
             use_container_width=True
         )
+
 
 
 
