@@ -304,258 +304,249 @@ def get_logo_html():
         return f'<img src="data:image/png;base64,{logo_data}" style="height: 60px; margin-right: 10px;">'
     return ""
 
-# Custom CSS with dynamic color palette
+# Custom CSS with dynamic colors - Scientific Academic Style
 def get_custom_css():
     colors = st.session_state.color_palette
     return f"""
     <style>
-    /* Main container */
-    .main {{
-        background-color: {colors['background']};
-        color: {colors['text']};
-    }}
-    
-    /* Headers */
-    h1, h2, h3 {{
-        color: {colors['primary']} !important;
-        font-weight: bold !important;
-        border-bottom: 2px solid {colors['secondary']};
-        padding-bottom: 10px;
-    }}
-    
-    /* Buttons */
-    .stButton > button {{
-        background-color: {colors['primary']};
-        color: white;
-        border: none;
-        border-radius: 25px;
-        padding: 10px 25px;
-        font-weight: bold;
-        transition: all 0.3s ease;
-        border: 2px solid {colors['secondary']};
-    }}
-    
-    .stButton > button:hover {{
-        background-color: {colors['secondary']};
-        color: {colors['background']};
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    }}
-    
-    /* Secondary button */
-    .stButton > button[kind="secondary"] {{
-        background: transparent;
-        color: {colors['secondary']};
-        border: 2px solid {colors['secondary']};
-    }}
-    
-    .stButton > button[kind="secondary"]:hover {{
-        background: {colors['secondary']};
-        color: {colors['background']};
-    }}
-    
-    /* Input fields */
-    .stTextInput > div > div > input {{
-        border-radius: 20px;
-        border: 2px solid {colors['secondary']};
-        background-color: rgba(255,255,255,0.1);
-        color: {colors['text']};
-        padding: 10px 20px;
-    }}
-    
-    .stTextInput > div > div > input:focus {{
-        border-color: {colors['accent']};
-        box-shadow: 0 0 0 2px {colors['accent']}40;
-    }}
-    
-    /* Dropdown */
-    .stSelectbox > div > div {{
-        background-color: rgba(255,255,255,0.1);
-        border-radius: 20px;
-        border: 2px solid {colors['secondary']};
-    }}
-    
-    /* Progress bar */
-    .stProgress > div > div {{
-        background-color: {colors['accent']};
-    }}
-    
-    /* Metrics */
-    .stMetric {{
-        background: linear-gradient(135deg, {colors['primary']}20, {colors['secondary']}20);
-        border-radius: 15px;
-        padding: 20px;
-        border: 2px solid {colors['accent']};
-        transition: all 0.3s ease;
-    }}
-    
-    .stMetric:hover {{
-        transform: translateY(-5px);
-        box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-    }}
-    
-    /* Steps indicator */
-    .step-container {{
-        display: flex;
-        justify-content: space-between;
-        margin: 2rem 0;
-        position: relative;
-    }}
-    
-    .step {{
-        flex: 1;
-        text-align: center;
-        padding: 1rem;
-        background: rgba(255,255,255,0.05);
-        border: 2px solid {colors['secondary']};
-        border-radius: 10px;
-        position: relative;
-        transition: all 0.3s;
-        margin: 0 5px;
-    }}
-    
-    .step.active {{
-        border-color: {colors['primary']};
-        background: linear-gradient(135deg, {colors['primary']}20, {colors['secondary']}20);
-    }}
-    
-    .step.completed {{
-        border-color: {colors['success']};
-        background: {colors['success']}20;
-    }}
-    
-    .step-number {{
-        width: 30px;
-        height: 30px;
-        background: {colors['primary']};
-        color: white;
-        border-radius: 50%;
-        display: inline-block;
-        line-height: 30px;
-        margin-bottom: 0.5rem;
-    }}
-    
-    .step.completed .step-number {{
-        background: {colors['success']};
-    }}
-    
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 10px;
-        background-color: rgba(255,255,255,0.05);
-        border-radius: 30px;
-        padding: 10px;
-    }}
-    
-    .stTabs [data-baseweb="tab"] {{
-        border-radius: 20px;
-        padding: 10px 25px;
-        background-color: transparent;
-        color: {colors['text']};
-        font-weight: bold;
-        transition: all 0.3s ease;
-    }}
-    
-    .stTabs [aria-selected="true"] {{
-        background-color: {colors['primary']} !important;
-        color: white !important;
-    }}
-    
-    /* Dataframes */
-    .stDataFrame {{
-        border: 2px solid {colors['secondary']};
-        border-radius: 15px;
-        overflow: hidden;
-    }}
-    
-    .stDataFrame th {{
-        background-color: {colors['primary']};
-        color: white;
-        font-weight: bold;
-    }}
-    
-    .stDataFrame td {{
-        background-color: rgba(255,255,255,0.05);
-    }}
-    
-    /* Success/Warning/Info boxes */
-    .success-box {{
-        background-color: {colors['success']}20;
-        border-left: 4px solid {colors['success']};
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-    }}
-    
-    .warning-box {{
-        background-color: {colors['warning']}20;
-        border-left: 4px solid {colors['warning']};
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-    }}
-    
-    .info-box {{
-        background-color: {colors['info']}20;
-        border-left: 4px solid {colors['info']};
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-    }}
-    
-    .error-box {{
-        background-color: {colors['warning']}20;
-        border-left: 4px solid {colors['warning']};
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-    }}
-    
-    /* Sidebar */
-    .css-1d391kg {{
-        background-color: {colors['background']}dd;
-    }}
-    
-    /* Animations */
-    @keyframes pulse {{
-        0% {{ transform: scale(1); }}
-        50% {{ transform: scale(1.05); }}
-        100% {{ transform: scale(1); }}
-    }}
-    
-    .pulse {{
-        animation: pulse 2s infinite;
-    }}
-    
-    /* Tooltips */
-    .tooltip {{
-        position: relative;
-        display: inline-block;
-        border-bottom: 1px dotted {colors['accent']};
-    }}
-    
-    .tooltip .tooltiptext {{
-        visibility: hidden;
-        width: 120px;
-        background-color: {colors['background']};
-        color: {colors['text']};
-        text-align: center;
-        border-radius: 6px;
-        padding: 5px;
-        position: absolute;
-        z-index: 1;
-        bottom: 125%;
-        left: 50%;
-        margin-left: -60px;
-        opacity: 0;
-        transition: opacity 0.3s;
-        border: 2px solid {colors['accent']};
-    }}
-    
-    .tooltip:hover .tooltiptext {{
-        visibility: visible;
-        opacity: 1;
-    }}
+        /* Global styles */
+        .stApp {{
+            background-color: {colors['background']};
+        }}
+        
+        /* Headers */
+        .main-header {{
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, {colors['gradient_start']}, {colors['gradient_end']});
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            padding: 0.5rem 0;
+        }}
+        
+        .sub-header {{
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: {colors['text']};
+            margin-bottom: 1rem;
+            border-bottom: 3px solid {colors['primary']};
+            padding-bottom: 0.5rem;
+        }}
+        
+        /* Cards */
+        .card {{
+            background: {colors['card_bg']};
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+            border: 1px solid {colors['border']};
+            margin-bottom: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }}
+        
+        .card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 12px 25px rgba(0,0,0,0.1);
+        }}
+        
+        .metric-card {{
+            background: linear-gradient(135deg, {colors['gradient_start']}10, {colors['gradient_end']}10);
+            border-radius: 12px;
+            padding: 1rem;
+            border-left: 4px solid {colors['primary']};
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        }}
+        
+        .metric-card .value {{
+            font-size: 2rem;
+            font-weight: 700;
+            color: {colors['primary']};
+            line-height: 1.2;
+        }}
+        
+        .metric-card .label {{
+            font-size: 0.9rem;
+            color: {colors['text']};
+            opacity: 0.8;
+            margin-top: 0.3rem;
+        }}
+        
+        /* Steps */
+        .step-container {{
+            display: flex;
+            justify-content: space-between;
+            margin: 2rem 0;
+            position: relative;
+        }}
+        
+        .step {{
+            flex: 1;
+            text-align: center;
+            padding: 1rem;
+            background: {colors['card_bg']};
+            border: 2px solid {colors['border']};
+            border-radius: 10px;
+            position: relative;
+            transition: all 0.3s;
+            margin: 0 5px;
+        }}
+        
+        .step.active {{
+            border-color: {colors['primary']};
+            background: linear-gradient(135deg, {colors['gradient_start']}10, {colors['gradient_end']}10);
+        }}
+        
+        .step.completed {{
+            border-color: {colors['success']};
+            background: {colors['success']}10;
+        }}
+        
+        .step-number {{
+            width: 30px;
+            height: 30px;
+            background: {colors['primary']};
+            color: white;
+            border-radius: 50%;
+            display: inline-block;
+            line-height: 30px;
+            margin-bottom: 0.5rem;
+        }}
+        
+        .step.completed .step-number {{
+            background: {colors['success']};
+        }}
+        
+        /* Buttons */
+        .stButton > button {{
+            background: linear-gradient(135deg, {colors['gradient_start']}, {colors['gradient_end']});
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 2rem;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 10px {colors['primary']}30;
+        }}
+        
+        .stButton > button:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px {colors['primary']}50;
+        }}
+        
+        .stButton > button:active {{
+            transform: translateY(0);
+        }}
+        
+        /* Secondary button */
+        .stButton > button[kind="secondary"] {{
+            background: white;
+            color: {colors['primary']};
+            border: 2px solid {colors['primary']};
+            box-shadow: none;
+        }}
+        
+        .stButton > button[kind="secondary"]:hover {{
+            background: {colors['primary']}10;
+        }}
+        
+        /* Info boxes */
+        .info-box {{
+            background: {colors['primary']}10;
+            border-left: 4px solid {colors['primary']};
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }}
+        
+        .success-box {{
+            background: {colors['success']}10;
+            border-left: 4px solid {colors['success']};
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }}
+        
+        .warning-box {{
+            background: {colors['warning']}10;
+            border-left: 4px solid {colors['warning']};
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }}
+        
+        .error-box {{
+            background: {colors['danger']}10;
+            border-left: 4px solid {colors['danger']};
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }}
+        
+        /* Tabs styling */
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 8px;
+            background-color: {colors['card_bg']};
+            padding: 0.5rem;
+            border-radius: 10px;
+            border: 1px solid {colors['border']};
+        }}
+        
+        .stTabs [data-baseweb="tab"] {{
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            color: {colors['text']};
+        }}
+        
+        .stTabs [aria-selected="true"] {{
+            background: linear-gradient(135deg, {colors['gradient_start']}, {colors['gradient_end']});
+            color: white !important;
+        }}
+        
+        /* Progress bar */
+        .stProgress > div > div > div > div {{
+            background: linear-gradient(90deg, {colors['gradient_start']}, {colors['gradient_end']});
+        }}
+        
+        /* Dataframe styling */
+        .dataframe {{
+            border: 1px solid {colors['border']};
+            border-radius: 10px;
+            overflow: hidden;
+        }}
+        
+        .dataframe th {{
+            background: linear-gradient(135deg, {colors['gradient_start']}, {colors['gradient_end']});
+            color: white;
+            padding: 0.75rem;
+            font-weight: 600;
+        }}
+        
+        .dataframe td {{
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid {colors['border']};
+        }}
+        
+        .dataframe tr:hover {{
+            background: {colors['primary']}05;
+        }}
+        
+        /* Recent institutions */
+        .recent-inst {{
+            background: {colors['card_bg']};
+            border: 1px solid {colors['border']};
+            border-radius: 8px;
+            padding: 0.5rem;
+            margin: 0.2rem 0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }}
+        
+        .recent-inst:hover {{
+            border-color: {colors['primary']};
+            background: {colors['primary']}05;
+        }}
     </style>
     """
 
@@ -3592,4 +3583,5 @@ with st.expander("🎨 Current Color Palette"):
     if st.button("🎲 Randomize Interface Colors"):
         st.session_state.color_palette = random.choice(COLOR_PALETTES)
         st.rerun()
+
 
