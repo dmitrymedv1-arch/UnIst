@@ -1273,7 +1273,7 @@ def process_dois_parallel(dois, target_ror=None, max_workers=MAX_WORKERS):
                 total_processed += 1
                 
                 # Update progress
-                progress = total_processed / total_dois
+                progress = min(total_processed / total_dois, 1.0)
                 progress_bar.progress(progress)
                 status_text.text(f"🔍 Processing DOIs: {total_processed}/{total_dois} (Attempt {attempt})")
         
@@ -2551,3 +2551,4 @@ with st.expander("🎨 Current Color Palette"):
     if st.button("🎲 Randomize Palette"):
         st.session_state.color_palette = random.choice(COLOR_PALETTES)
         st.rerun()
+
