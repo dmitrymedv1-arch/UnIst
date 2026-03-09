@@ -3480,7 +3480,17 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
         status_df = pd.DataFrame([
             {'Status': desc, 'Count': count}
             for status, count in verification_counts.items()
-            if (desc := status_descriptions.get(status, status))
+            if (desc := {
+                'verified': '✅ Подтверждено Crossref',
+                'false_positive': '❌ Ложное срабатывание OpenAlex',
+                'openalex_only': '⚠️ Только OpenAlex (нет данных Crossref)',
+                'crossref_only': '✅ Только Crossref',
+                'not_in_crossref': '❌ Не найдено в Crossref',
+                'not_found': '❌ Институт не найден',
+                'no_openalex_data': '⚠️ Нет данных OpenAlex',
+                'unknown': '❓ Статус неизвестен',
+                'not_checked': 'ℹ️ Проверка не выполнялась'
+            }.get(status, status))
         ])
         if not status_df.empty:
             st.dataframe(status_df, use_container_width=True)
@@ -3921,6 +3931,7 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
             mime="application/json",
             use_container_width=True
         )
+
 
 
 
