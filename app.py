@@ -2900,24 +2900,28 @@ def plot_yearly_publications(yearly_data: Dict[int, int], plot_palette: Dict):
 
 def plot_database_comparison(df, plot_palette: Dict):
     """Plot database indexing comparison"""
-    belong = df[df['belongs_to_period'] == True].copy()
-    
-    if belong.empty:
+    # Используем переданный df напрямую, без дополнительной фильтрации
+    if df.empty:
         return None
     
-    wos_count = belong['wos_indexed'].sum()
-    scopus_count = belong['scopus_indexed'].sum()
-    both_count = (belong['wos_indexed'] & belong['scopus_indexed']).sum()
+    wos_count = df['wos_indexed'].sum()
+    scopus_count = df['scopus_indexed'].sum()
+    both_count = (df['wos_indexed'] & df['scopus_indexed']).sum()
+    wos_only = wos_count - both_count
+    scopus_only = scopus_count - both_count
+    neither = len(df) - (wos_count + scopus_count - both_count)
     
     fig = go.Figure()
     
-    categories = ['WoS', 'Scopus', 'Both']
-    values = [wos_count, scopus_count, both_count]
+    # Показываем более детальную разбивку
+    categories = ['WoS Only', 'Scopus Only', 'Both', 'Neither']
+    values = [wos_only, scopus_only, both_count, neither]
     
     colors = [
         plot_palette['categorical'][0],
         plot_palette['categorical'][1],
-        plot_palette['categorical'][2]
+        plot_palette['categorical'][2],
+        plot_palette['categorical'][3] if len(plot_palette['categorical']) > 3 else '#95a5a6'
     ]
     
     fig.add_trace(go.Bar(
@@ -2931,7 +2935,7 @@ def plot_database_comparison(df, plot_palette: Dict):
     ))
     
     fig.update_layout(
-        title='Database Indexing Comparison',
+        title='Database Indexing Distribution',
         xaxis_title='Database',
         yaxis_title='Number of Publications',
         showlegend=False
@@ -3932,6 +3936,7 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
             mime="application/json",
             use_container_width=True
         )
+
 
 
 
