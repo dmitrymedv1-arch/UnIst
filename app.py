@@ -3406,10 +3406,7 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
     )
     
     # Apply filter
-    filtered_df = belong[belong['include_in_analysis'] == True].copy()
-    
-    # Показываем предупреждение, если есть исключенные статьи
-    excluded_count = len(belong) - len(filtered_df)
+    excluded_count = len(belong) - len(belong[belong['include_in_analysis'] == True])
     if excluded_count > 0:
         false_positives = len(belong[belong['verification_status'] == 'false_positive'])
         other_excluded = excluded_count - false_positives
@@ -3421,14 +3418,18 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
             warning_msg += f"   • Другие причины: {other_excluded}\n"
         
         st.warning(warning_msg)
+    
+    # Применяем фильтр по include_in_analysis и затем по выбранной опции
+    if filter_option == "All Papers":
+        filtered_df = belong[belong['include_in_analysis'] == True].copy()
     elif filter_option == "WoS Only":
-        filtered_df = filtered_df[filtered_df['wos_indexed'] == True]
+        filtered_df = belong[(belong['include_in_analysis'] == True) & (belong['wos_indexed'] == True)].copy()
     elif filter_option == "Scopus Only":
-        filtered_df = filtered_df[filtered_df['scopus_indexed'] == True]
+        filtered_df = belong[(belong['include_in_analysis'] == True) & (belong['scopus_indexed'] == True)].copy()
     elif filter_option == "Both Databases":
-        filtered_df = filtered_df[(filtered_df['wos_indexed'] == True) & (filtered_df['scopus_indexed'] == True)]
+        filtered_df = belong[(belong['include_in_analysis'] == True) & (belong['wos_indexed'] == True) & (belong['scopus_indexed'] == True)].copy()
     elif filter_option == "Neither":
-        filtered_df = filtered_df[(filtered_df['wos_indexed'] == False) & (filtered_df['scopus_indexed'] == False)]
+        filtered_df = belong[(belong['include_in_analysis'] == True) & (belong['wos_indexed'] == False) & (belong['scopus_indexed'] == False)].copy()
     
     st.info(f"Showing {len(filtered_df)} papers ({len(filtered_df)/len(belong)*100:.1f}% of total)")
     
@@ -3931,6 +3932,7 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
             mime="application/json",
             use_container_width=True
         )
+
 
 
 
