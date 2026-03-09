@@ -1289,7 +1289,7 @@ def get_crossref_data(doi):
         
         authors = []
         orcids = []
-        # Собираем все аффилиации из Crossref для дальнейшей проверки
+        # Собираем все аффилиации из Crossref
         crossref_affiliations = []
         
         for author in msg.get('author', []):
@@ -1307,35 +1307,29 @@ def get_crossref_data(doi):
                 orcid_clean = re.sub(r'^https?://orcid\.org/', '', orcid)
                 orcids.append(orcid_clean)
             
-            # Собираем аффилиации из Crossref
-            if 'affiliation' in author and author['affiliation']:
+            # Собираем аффилиации из Crossref (как в тестовом коде)
+            if 'affiliation' in author:
                 for aff in author['affiliation']:
                     if isinstance(aff, dict) and 'name' in aff and aff['name']:
-                        crossref_affiliations.append(aff['name'].strip())
-                    elif isinstance(aff, str) and aff:
-                        crossref_affiliations.append(aff.strip())
+                        aff_name = aff['name'].strip().lower()
+                        if aff_name and aff_name not in crossref_affiliations:
+                            crossref_affiliations.append(aff_name)
         
         authors_str = '; '.join(authors) if authors else ''
         orcids_str = '; '.join(orcids) if orcids else ''
         authors_count = len(authors)
         
-        # Удаляем дубликаты аффилиаций
-        crossref_affiliations = list(dict.fromkeys(crossref_affiliations))
-        
         # Extract ISSN information
         issn_list = []
         
-        # Get ISSN from ISSN field if present
         if 'ISSN' in msg and msg['ISSN']:
             issn_list.extend(msg['ISSN'])
         
-        # Get ISSN from issn-type field if present
         if 'issn-type' in msg and msg['issn-type']:
             for issn_type_item in msg['issn-type']:
                 if 'value' in issn_type_item and issn_type_item['value'] not in issn_list:
                     issn_list.append(issn_type_item['value'])
         
-        # Remove duplicates while preserving order
         seen = set()
         unique_issns = []
         for issn in issn_list:
@@ -1343,7 +1337,6 @@ def get_crossref_data(doi):
                 seen.add(issn)
                 unique_issns.append(issn)
         
-        # Format ISSN string
         if unique_issns:
             if len(unique_issns) == 1:
                 issn_str = unique_issns[0]
@@ -1360,7 +1353,6 @@ def get_crossref_data(doi):
         references_count = len(msg.get('reference', [])) if 'reference' in msg else 0
         citations_cr = msg.get('is-referenced-by-count', 0)
         
-        # Get DOI in clean form
         doi_clean_final = msg.get('DOI', '')
         if not doi_clean_final:
             doi_clean_final = doi_clean
@@ -1384,9 +1376,8 @@ def get_crossref_data(doi):
             'citations_cr': citations_cr,
             'publisher': msg.get('publisher', ''),
             'type': msg.get('type', ''),
-            # Добавляем список аффилиаций из Crossref
+            # Сохраняем все аффилиации из Crossref в нижнем регистре для сравнения
             'crossref_affiliations': crossref_affiliations,
-            # Флаг наличия аффилиаций в Crossref
             'has_crossref_affiliations': len(crossref_affiliations) > 0
         }
         
@@ -1489,6 +1480,192 @@ def get_openalex_data(doi, target_ror=None):
     except Exception as e:
         logger.error(f"Error getting OpenAlex data for {doi}: {e}")
         return None
+
+def get_openalex_work_details(doi):
+    """
+    Получение детальной информации о работе из OpenAlex
+    Аналог функции из тестового кода
+    """
+    cache_key = f"openalex_work_details_{doi}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    
+    doi_clean = re.sub(r'^(https?://(dx\.)?doi\.org/|doi:?)', '', doi.strip(), flags=re.I)
+    
+    # Форматируем DOI для OpenAlex
+    if doi_clean.startswith('10.'):
+        doi_url = f"https://doi.org/{doi_clean}"
+    else:
+        doi_url = doi_clean
+    
+    url = f"https://api.openalex.org/works/{doi_url}"
+    
+    try:
+        response = requests.get(url, timeout=15)
+        if response.status_code == 200:
+            data = response.json()
+            cache.set(cache_key, data)
+            return data
+        else:
+            logger.error(f"OpenAlex error for {doi}: status {response.status_code}")
+            return None
+    except Exception as e:
+        logger.error(f"Error getting OpenAlex work details for {doi}: {e}")
+        return None
+
+def verify_affiliations_with_crossref(openalex_work, crossref_affiliations, target_org_name):
+    """
+    Верификация аффилиаций OpenAlex с помощью Crossref
+    Аналог функции из тестового кода
+    Возвращает: (принадлежит_институту, статус_верификации, детали)
+    """
+    
+    if not openalex_work:
+        return False, 'no_openalex_data', []
+    
+    # Нормализуем название искомого института
+    target_lower = target_org_name.lower().strip()
+    
+    # Получаем авторов из OpenAlex
+    openalex_authorships = openalex_work.get('authorships', [])
+    
+    verified_authors = []
+    found_target = False
+    verification_status = 'no_match'
+    
+    for authorship in openalex_authorships:
+        author_name = authorship.get('author', {}).get('display_name', 'Unknown')
+        
+        # Получаем институты из OpenAlex
+        openalex_institutions = []
+        for inst in authorship.get('institutions', []):
+            inst_name = inst.get('display_name', '')
+            if inst_name:
+                openalex_institutions.append({
+                    'name': inst_name,
+                    'name_lower': inst_name.lower(),
+                    'raw': inst.get('raw_affiliation_string', '')
+                })
+        
+        # Получаем raw affiliation strings
+        raw_affiliations = authorship.get('raw_affiliation_strings', [])
+        
+        # Проверяем каждую аффилиацию
+        author_institutions = []
+        
+        # Если есть данные из Crossref
+        if crossref_affiliations:
+            # Проверяем институты
+            for inst in openalex_institutions:
+                inst_lower = inst['name_lower']
+                
+                # Проверяем, совпадает ли с искомым институтом
+                matches_target = (target_lower in inst_lower or inst_lower in target_lower)
+                
+                # Ищем соответствие в Crossref
+                found_in_crossref = any(
+                    inst_lower in cr_aff or cr_aff in inst_lower 
+                    for cr_aff in crossref_affiliations
+                )
+                
+                inst_info = {
+                    'name': inst['name'],
+                    'raw': inst['raw'],
+                    'matches_target': matches_target,
+                    'verified': found_in_crossref
+                }
+                
+                if matches_target:
+                    found_target = True
+                    if found_in_crossref:
+                        inst_info['status'] = '✅ Подтверждено Crossref'
+                        verification_status = 'verified'
+                    else:
+                        inst_info['status'] = '❌ НЕ подтверждено Crossref (ложное срабатывание)'
+                        verification_status = 'false_positive'
+                
+                author_institutions.append(inst_info)
+            
+            # Проверяем raw affiliations
+            for raw_aff in raw_affiliations:
+                raw_lower = raw_aff.lower()
+                matches_target = (target_lower in raw_lower or raw_lower in target_lower)
+                
+                if matches_target and not any(inst['raw'] == raw_aff for inst in author_institutions):
+                    found_in_crossref = any(
+                        cr_aff in raw_lower or raw_lower in cr_aff
+                        for cr_aff in crossref_affiliations
+                    )
+                    
+                    inst_info = {
+                        'name': 'Raw affiliation',
+                        'raw': raw_aff,
+                        'matches_target': True,
+                        'verified': found_in_crossref
+                    }
+                    
+                    if found_target:
+                        if found_in_crossref:
+                            inst_info['status'] = '✅ Подтверждено Crossref (raw)'
+                            verification_status = 'verified'
+                        else:
+                            inst_info['status'] = '❌ НЕ подтверждено Crossref (ложное срабатывание, raw)'
+                            verification_status = 'false_positive'
+                    
+                    author_institutions.append(inst_info)
+        
+        else:
+            # Нет данных Crossref - используем OpenAlex
+            for inst in openalex_institutions:
+                inst_lower = inst['name_lower']
+                matches_target = (target_lower in inst_lower or inst_lower in target_lower)
+                
+                if matches_target:
+                    found_target = True
+                    verification_status = 'openalex_only'
+                    inst_info = {
+                        'name': inst['name'],
+                        'raw': inst['raw'],
+                        'matches_target': True,
+                        'verified': False,
+                        'status': 'ℹ️ Только OpenAlex (нет данных Crossref)'
+                    }
+                    author_institutions.append(inst_info)
+            
+            # Проверяем raw affiliations
+            for raw_aff in raw_affiliations:
+                raw_lower = raw_aff.lower()
+                matches_target = (target_lower in raw_lower or raw_lower in target_lower)
+                
+                if matches_target and not any(inst.get('raw') == raw_aff for inst in author_institutions):
+                    found_target = True
+                    verification_status = 'openalex_only'
+                    author_institutions.append({
+                        'name': 'Raw affiliation',
+                        'raw': raw_aff,
+                        'matches_target': True,
+                        'verified': False,
+                        'status': 'ℹ️ Только OpenAlex (нет данных Crossref)'
+                    })
+        
+        verified_authors.append({
+            'name': author_name,
+            'institutions': author_institutions
+        })
+    
+    # Определяем итоговый статус
+    if not found_target:
+        return False, 'not_found', verified_authors
+    
+    if verification_status == 'verified':
+        return True, 'verified', verified_authors
+    elif verification_status == 'false_positive':
+        return False, 'false_positive', verified_authors
+    elif verification_status == 'openalex_only':
+        return True, 'openalex_only', verified_authors
+    else:
+        return False, 'unknown', verified_authors
 
 def check_affiliation_match(paper_data: Dict, target_org_name: str) -> Tuple[bool, str]:
     """
@@ -1641,8 +1818,7 @@ def fetch_all_dois_openalex(ror, years_expanded):
 # Parallel DOI processing
 def process_doi_complete(doi, target_ror=None, target_org_name=None):
     """
-    Complete DOI processing: get data from Crossref and OpenAlex,
-    then verify affiliation if target organization is provided
+    Complete DOI processing with affiliation verification
     """
     result = {
         'doi': doi,
@@ -1657,24 +1833,49 @@ def process_doi_complete(doi, target_ror=None, target_org_name=None):
         result['status'] = 'crossref_error'
         return result
     
-    # Получаем данные из OpenAlex
-    oa_data = get_openalex_data(doi, target_ror)
-    if oa_data:
-        result.update(oa_data)
+    # Получаем детальные данные из OpenAlex
+    oa_work = get_openalex_work_details(doi)
+    
+    if oa_work:
+        # Добавляем базовые данные из OpenAlex
+        oa_data = get_openalex_data(doi, target_ror)
+        if oa_data:
+            result.update(oa_data)
+        
+        # Верифицируем аффилиации если указан институт
+        if target_org_name:
+            belongs, verification_status, verified_authors = verify_affiliations_with_crossref(
+                oa_work, 
+                result.get('crossref_affiliations', []),
+                target_org_name
+            )
+            
+            result['belongs_to_org'] = belongs
+            result['verification_status'] = verification_status
+            result['verified_authors'] = json.dumps(verified_authors, ensure_ascii=False) if verified_authors else ''
+            
+            logger.debug(f"DOI {doi}: belongs={belongs}, status={verification_status}")
+        else:
+            result['belongs_to_org'] = True
+            result['verification_status'] = 'not_checked'
+        
         result['status'] = 'success'
     else:
+        # Если OpenAlex не ответил, но есть Crossref данные
+        if target_org_name and result.get('crossref_affiliations'):
+            # Проверяем наличие института в Crossref
+            target_lower = target_org_name.lower()
+            found_in_crossref = any(
+                target_lower in aff or aff in target_lower 
+                for aff in result['crossref_affiliations']
+            )
+            result['belongs_to_org'] = found_in_crossref
+            result['verification_status'] = 'crossref_only' if found_in_crossref else 'not_in_crossref'
+        else:
+            result['belongs_to_org'] = False
+            result['verification_status'] = 'no_openalex_data'
+        
         result['status'] = 'openalex_error'
-        # Даже если OpenAlex не ответил, продолжаем с данными Crossref
-    
-    # Проверяем принадлежность институту, если указано название
-    if target_org_name:
-        belongs, source = check_affiliation_match(result, target_org_name)
-        result['belongs_to_org'] = belongs
-        result['affiliation_source'] = source
-        logger.debug(f"DOI {doi}: belongs={belongs}, source={source}")
-    else:
-        result['belongs_to_org'] = True  # Если институт не указан, считаем что все статьи наши
-        result['affiliation_source'] = 'not_checked'
     
     return result
 
@@ -2063,20 +2264,48 @@ def create_results_dataframe(results, target_years_set):
     if df.empty:
         return df
     
-    # Добавляем информацию о проверке аффилиации
+    # Убеждаемся, что есть все необходимые колонки
     if 'belongs_to_org' not in df.columns:
         df['belongs_to_org'] = True
-    if 'affiliation_source' not in df.columns:
-        df['affiliation_source'] = 'not_checked'
+    if 'verification_status' not in df.columns:
+        df['verification_status'] = 'unknown'
     
+    # Проверяем принадлежность к периоду
     df['belongs_to_period'] = df.apply(
         lambda row: row['late_dt'] is not None and row['late_dt'].year in target_years_set 
         if pd.notna(row['late_dt']) else False, 
         axis=1
     )
     
-    # Добавляем комбинированный флаг: статья в периоде И принадлежит институту
-    df['include_in_analysis'] = df['belongs_to_period'] & df['belongs_to_org']
+    # Флаг для включения в анализ:
+    # 1. Статья в нужном периоде
+    # 2. И принадлежит институту (с проверкой)
+    # 3. И не является ложным срабатыванием
+    df['include_in_analysis'] = df.apply(
+        lambda row: (
+            row['belongs_to_period'] and 
+            row['belongs_to_org'] and 
+            row.get('verification_status') != 'false_positive'
+        ),
+        axis=1
+    )
+    
+    # Добавляем понятное описание статуса верификации
+    status_descriptions = {
+        'verified': '✅ Подтверждено Crossref',
+        'false_positive': '❌ Ложное срабатывание OpenAlex',
+        'openalex_only': '⚠️ Только OpenAlex (нет данных Crossref)',
+        'crossref_only': '✅ Только Crossref',
+        'not_in_crossref': '❌ Не найдено в Crossref',
+        'not_found': '❌ Институт не найден',
+        'no_openalex_data': '⚠️ Нет данных OpenAlex',
+        'unknown': '❓ Статус неизвестен',
+        'not_checked': 'ℹ️ Проверка не выполнялась'
+    }
+    
+    df['verification_description'] = df['verification_status'].map(
+        lambda x: status_descriptions.get(x, x)
+    )
     
     if 'late_dt' in df.columns:
         df['late_date'] = df['late_dt'].apply(
@@ -2089,15 +2318,15 @@ def create_results_dataframe(results, target_years_set):
         df = add_issn_metrics_to_df(df, st.session_state.issn_mapping)
     
     column_order = [
-        'doi', 'title', 'include_in_analysis', 'belongs_to_period', 'belongs_to_org', 
-        'affiliation_source', 'late_date', 'late_year',
+        'doi', 'title', 'include_in_analysis', 'belongs_to_period', 'belongs_to_org',
+        'verification_status', 'verification_description', 'late_date', 'late_year',
         'print_date', 'online_date', 'publication_year', 'publication_date',
         'authors', 'authors_count', 'orcids',
         'affiliations', 'countries', 'journal', 'issn', 'publisher', 'type',
         'volume', 'issue', 'pages', 'IF', 'IF_Q', 'CS', 'CS_Q',
         'wos_indexed', 'scopus_indexed', 'is_oa', 'funding',
         'references_count', 'citations_cr', 'citations_oa',
-        'openalex_id', 'language', 'status'
+        'openalex_id', 'language', 'status', 'verified_authors'
     ]
     
     existing_cols = [col for col in column_order if col in df.columns]
@@ -3178,7 +3407,21 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
     
     # Apply filter
     filtered_df = belong[belong['include_in_analysis'] == True].copy()
-    if filter_option == "WoS Only":
+    
+    # Показываем предупреждение, если есть исключенные статьи
+    excluded_count = len(belong) - len(filtered_df)
+    if excluded_count > 0:
+        false_positives = len(belong[belong['verification_status'] == 'false_positive'])
+        other_excluded = excluded_count - false_positives
+        
+        warning_msg = f"⚠️ Исключено статей: {excluded_count}\n"
+        if false_positives > 0:
+            warning_msg += f"   • Ложные срабатывания OpenAlex: {false_positives}\n"
+        if other_excluded > 0:
+            warning_msg += f"   • Другие причины: {other_excluded}\n"
+        
+        st.warning(warning_msg)
+    elif filter_option == "WoS Only":
         filtered_df = filtered_df[filtered_df['wos_indexed'] == True]
     elif filter_option == "Scopus Only":
         filtered_df = filtered_df[filtered_df['scopus_indexed'] == True]
@@ -3191,6 +3434,9 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
     
     # Validation stats
     with st.expander("📊 Validation Statistics"):
+        # Статистика по верификации
+        verification_counts = df['verification_status'].value_counts()
+        
         st.markdown(f"""
         <div class="info-box">
         <strong>Date Validation (Crossref):</strong><br>
@@ -3198,22 +3444,46 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
         - Successfully validated: {validation['validated']:,} ({validation['validated']/validation['with_doi']*100:.1f}%)<br>
         - Kept in period: {validation['kept']:,}<br>
         - Rejected (year mismatch): {validation['rejected']:,}<br>
-        - Rejected (affiliation mismatch): {validation.get('affiliation_mismatch', 0):,}<br>
         - Not found in Crossref: {validation['not_found']:,}
         </div>
         """, unsafe_allow_html=True)
         
-        # Добавляем статистику по источникам аффилиаций
-        if 'affiliation_source' in belong.columns:
-            source_counts = belong['affiliation_source'].value_counts()
-            st.markdown("### Affiliation Verification Sources")
-            col_src1, col_src2, col_src3 = st.columns(3)
-            with col_src1:
-                st.metric("Crossref", source_counts.get('crossref', 0))
-            with col_src2:
-                st.metric("OpenAlex", source_counts.get('openalex', 0))
-            with col_src3:
-                st.metric("Not Checked", source_counts.get('not_checked', 0))
+        st.markdown("### 🔍 Affiliation Verification Results")
+        
+        col_v1, col_v2, col_v3, col_v4 = st.columns(4)
+        
+        with col_v1:
+            verified_count = verification_counts.get('verified', 0)
+            st.metric("✅ Verified by Crossref", verified_count, 
+                     help="Аффилиация подтверждена данными Crossref")
+        
+        with col_v2:
+            false_positive = verification_counts.get('false_positive', 0)
+            st.metric("❌ False Positives", false_positive,
+                     help="OpenAlex ошибся - аффилиация не подтверждена Crossref")
+        
+        with col_v3:
+            openalex_only = verification_counts.get('openalex_only', 0)
+            st.metric("⚠️ OpenAlex Only", openalex_only,
+                     help="Нет данных Crossref, используется OpenAlex")
+        
+        with col_v4:
+            crossref_only = verification_counts.get('crossref_only', 0)
+            st.metric("📚 Crossref Only", crossref_only,
+                     help="Только данные Crossref (OpenAlex не ответил)")
+        
+        # Показываем детальную статистику
+        if false_positive > 0:
+            st.warning(f"⚠️ Обнаружено {false_positive} ложных срабатываний OpenAlex. Эти статьи исключены из анализа.")
+        
+        # Таблица со статусами
+        status_df = pd.DataFrame([
+            {'Status': desc, 'Count': count}
+            for status, count in verification_counts.items()
+            if (desc := status_descriptions.get(status, status))
+        ])
+        if not status_df.empty:
+            st.dataframe(status_df, use_container_width=True)
     
     # Tabs for different views
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -3651,6 +3921,7 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
             mime="application/json",
             use_container_width=True
         )
+
 
 
 
