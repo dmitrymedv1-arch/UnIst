@@ -2085,7 +2085,11 @@ def create_country_network(df, period_only=True):
         if pd.isna(countries_val):
             countries_val = ''
         countries = extract_countries(str(countries_val))
-        affiliations = extract_affiliations(row.get('affiliations', ''))
+        
+        affiliations_val = row.get('affiliations', '')
+        if pd.isna(affiliations_val):
+            affiliations_val = ''
+        affiliations = extract_affiliations(str(affiliations_val))
         
         # Count papers per country
         for country in countries:
