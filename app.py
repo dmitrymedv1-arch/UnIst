@@ -3653,7 +3653,10 @@ elif st.session_state.step == 3 and st.session_state.analysis_complete:
             # Collaboration types
             if 'countries' in filtered_df.columns:
                 def get_collab_type(row):
-                    countries = extract_countries(row.get('countries', ''))
+                    countries_val = row.get('countries', '')
+                    if pd.isna(countries_val) or not countries_val:
+                        return 'Domestic'
+                    countries = extract_countries(str(countries_val))
                     if len(countries) <= 1:
                         return 'Domestic'
                     else:
