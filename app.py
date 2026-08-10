@@ -2760,8 +2760,9 @@ def create_enhanced_visualizations(df):
         oa_by_year = belong.groupby('late_year')['is_oa'].mean() * 100
         ax6.plot(oa_by_year.index, oa_by_year.values, marker='o', 
                 color=plot_palette['categorical'][2], linewidth=2, markersize=8)
-        oa_values = np.nan_to_num(oa_by_year.values, nan=0.0)
-        ax6.fill_between(oa_by_year.index, oa_values, alpha=0.3, color=plot_palette['categorical'][2])
+        oa_years = np.array(oa_by_year.index, dtype=float)
+        oa_values = np.nan_to_num(oa_by_year.values.astype(float), nan=0.0)
+        ax6.fill_between(oa_years, oa_values, alpha=0.3, color=plot_palette['categorical'][2])
         ax6.set_xlabel('Year', fontweight='bold')
         ax6.set_ylabel('Open Access (%)', fontweight='bold')
         ax6.set_title('Open Access Trend Over Time', fontweight='bold', pad=20)
