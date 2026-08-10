@@ -2034,8 +2034,15 @@ def create_affiliation_network(df, period_only=True):
     affiliation_stats = defaultdict(lambda: {'papers': 0, 'countries': set()})
     
     for _, row in data.iterrows():
-        affiliations = extract_affiliations(row.get('affiliations', ''))
-        countries = extract_countries(row.get('countries', ''))
+        affiliations_val = row.get('affiliations', '')
+        if pd.isna(affiliations_val):
+            affiliations_val = ''
+        affiliations = extract_affiliations(str(affiliations_val))
+        
+        countries_val = row.get('countries', '')
+        if pd.isna(countries_val):
+            countries_val = ''
+        countries = extract_countries(str(countries_val))
         
         # Count papers per affiliation
         for aff in affiliations:
@@ -2074,7 +2081,10 @@ def create_country_network(df, period_only=True):
     country_stats = defaultdict(lambda: {'papers': 0, 'affiliations': set()})
     
     for _, row in data.iterrows():
-        countries = extract_countries(row.get('countries', ''))
+        countries_val = row.get('countries', '')
+        if pd.isna(countries_val):
+            countries_val = ''
+        countries = extract_countries(str(countries_val))
         affiliations = extract_affiliations(row.get('affiliations', ''))
         
         # Count papers per country
